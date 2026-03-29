@@ -73,7 +73,7 @@ export function DashboardHeader() {
         <h1
           className={cn(
             "flex min-w-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em]",
-            isMyJourney ? "text-orange-900" : "text-slate-950",
+            isMyJourney ? "text-orange-900" : "text-slate-600",
           )}
         >
           <PageIcon

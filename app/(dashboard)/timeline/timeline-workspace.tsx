@@ -14,7 +14,19 @@ import {
 import { MonthStrip, useMonthSelection } from "@/components/month-strip"
 import { CATEGORY_GLYPH, RoadmapCategoriesGrid } from "@/components/roadmap-categories-grid"
 import { TimelineIncomeTankCard } from "@/components/timeline-income-tank-card"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Button } from "@/components/ui/button"
+import { format } from "date-fns"
+import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import {
   Select,
   SelectContent,
@@ -70,7 +82,7 @@ type ActivityRow = {
   merchant: string
   accountLabel: string
   category: string
-  flow: "Income" | "Expense"
+  flow: "Income" | "Expense" | "Transfer"
   planned: number
   actual: number
   status: "Posted" | "Processing" | "Over"
@@ -79,6 +91,9 @@ type ActivityRow = {
 }
 
 const DEFAULT_ACTIVITY_ROW_LIMIT = 14
+
+/** Virtual id: form-only row for “add manual transaction” until saved. */
+const NEW_MANUAL_ACTIVITY_ID = "__new_manual_activity__"
 
 const categoryGlyphClass =
   "shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-70 group-focus-within:opacity-70"
@@ -150,7 +165,7 @@ export function TimelineWorkspace({
     Record<string, MonthLabel>
   >({})
   const [activityFieldOverrides, setActivityFieldOverrides] = useState<
-    Record<string, Partial<Pick<ActivityRow, "dateLabel" | "source" | "accountLabel" | "actual">>>
+    Record<string, Partial<Pick<ActivityRow, "dateLabel" | "source" | "accountLabel" | "actual" | "flow">>>
   >({})
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [activityCategoryDraft, setActivityCategoryDraft] = useState("")
@@ -159,9 +174,12 @@ export function TimelineWorkspace({
   const [activitySourceDraft, setActivitySourceDraft] = useState("")
   const [activityAccountDraft, setActivityAccountDraft] = useState("")
   const [activityAmountDraft, setActivityAmountDraft] = useState(0)
+  const [activityFlowDraft, setActivityFlowDraft] = useState<ActivityRow["flow"]>("Expense")
   const [isEditingActivityDetails, setIsEditingActivityDetails] = useState(false)
+  const [isCategoryComboboxOpen, setIsCategoryComboboxOpen] = useState(false)
   const [showAllActivityRows, setShowAllActivityRows] = useState(false)
   const [isSettleUpOpen, setIsSettleUpOpen] = useState(false)
+  const [manualActivityRows, setManualActivityRows] = useState<ActivityRow[]>([])
   
   // In a real app, this would check if today's date is past the end of the selected month
   const isReadyToCashOut = false 
@@ -286,7 +304,7 @@ export function TimelineWorkspace({
         }),
     )
 
-    return [...incomeRows, ...expenseRows]
+    return [...incomeRows, ...expenseRows, ...manualActivityRows]
       .map((row) => ({
         ...row,
         ...activityFieldOverrides[row.id],
@@ -302,12 +320,37 @@ export function TimelineWorkspace({
     incomeEditDraft,
     isEditingBudgets,
     isEditingIncome,
+    manualActivityRows,
     selectedMonth,
   ])
-  const selectedActivity = useMemo(
-    () => activityRows.find((row) => row.id === selectedActivityId) ?? null,
-    [activityRows, selectedActivityId],
+
+  const newManualActivityPlaceholder = useMemo(
+    (): ActivityRow => ({
+      id: NEW_MANUAL_ACTIVITY_ID,
+      sourceType: "manual",
+      dateLabel: "",
+      postedDateLabel: "",
+      source: "",
+      merchant: "",
+      accountLabel: "",
+      category: "",
+      flow: "Expense",
+      planned: 0,
+      actual: 0,
+      status: "Posted",
+      budgetMonthLabel: selectedMonth,
+    }),
+    [selectedMonth],
   )
+
+  const selectedActivity = useMemo(() => {
+    if (selectedActivityId === NEW_MANUAL_ACTIVITY_ID) {
+      return newManualActivityPlaceholder
+    }
+    return activityRows.find((row) => row.id === selectedActivityId) ?? null
+  }, [activityRows, selectedActivityId, newManualActivityPlaceholder])
+
+  const isNewManualActivity = selectedActivityId === NEW_MANUAL_ACTIVITY_ID
   const visibleActivityRows = useMemo(
     () =>
       showAllActivityRows ? activityRows : activityRows.slice(0, DEFAULT_ACTIVITY_ROW_LIMIT),
@@ -317,8 +360,8 @@ export function TimelineWorkspace({
   const categoryOptions = useMemo(() => categories.map((cat) => cat.name), [categories])
   /** Income rows use a single placeholder label until income categories exist. */
   const activityCategorySelectOptions = useMemo(
-    () => (selectedActivity?.flow === "Income" ? ["Income"] : categoryOptions),
-    [selectedActivity?.flow, categoryOptions],
+    () => (activityFlowDraft === "Income" ? ["Income"] : activityFlowDraft === "Transfer" ? ["Transfer"] : categoryOptions),
+    [activityFlowDraft, categoryOptions],
   )
   const selectedActivityCategory = selectedActivity
     ? (activityCategoryOverrides[selectedActivity.id] ?? selectedActivity.category)
@@ -365,15 +408,26 @@ export function TimelineWorkspace({
         }
       })
   }, [activityBudgetMonthDraft, selectedActivity, selectedActivityBudgetMonth, selectedActivityBudgetMonthIndex])
+  const canSaveNewManualActivity = Boolean(
+    isNewManualActivity &&
+      activityCategoryDraft.trim() &&
+      activityDateDraft.trim() &&
+      activitySourceDraft.trim() &&
+      activityAccountDraft.trim() &&
+      activityAmountDraft > 0,
+  )
   const hasPendingActivityChanges = Boolean(
     selectedActivity &&
-      (activityCategoryDraft !== selectedActivityCategory ||
-        activityBudgetMonthDraft !== selectedActivityBudgetMonth ||
-        (selectedActivityIsManual &&
-          (activityDateDraft !== selectedActivity.dateLabel ||
-            activitySourceDraft !== selectedActivity.source ||
-            activityAccountDraft !== selectedActivity.accountLabel ||
-            activityAmountDraft !== selectedActivity.actual))),
+      (isNewManualActivity
+        ? canSaveNewManualActivity
+        : activityCategoryDraft !== selectedActivityCategory ||
+          activityBudgetMonthDraft !== selectedActivityBudgetMonth ||
+          (selectedActivityIsManual &&
+            (activityDateDraft !== selectedActivity.dateLabel ||
+              activitySourceDraft !== selectedActivity.source ||
+              activityAccountDraft !== selectedActivity.accountLabel ||
+              activityAmountDraft !== selectedActivity.actual ||
+              activityFlowDraft !== selectedActivity.flow))),
   )
   const budgetMonthDraftIndex = monthIndexFromLabel(activityBudgetMonthDraft) ?? selectedActivityBudgetMonthIndex
 
@@ -397,10 +451,10 @@ export function TimelineWorkspace({
       ? "shrink-0 border-b border-slate-300 bg-white px-3 py-2.5"
       : "shrink-0 border-b border-slate-700 bg-slate-700/80 px-3 py-2.5"
   const cardTitleClass = isSample
-    ? "text-sm font-semibold tracking-tight text-slate-800"
+    ? "text-sm font-semibold tracking-tight text-slate-900"
     : isLabSoftSlate
-      ? "text-[15px] font-bold tracking-tight text-slate-500"
-      : "text-sm font-semibold tracking-tight text-slate-50"
+      ? "text-[15px] font-bold tracking-tight text-slate-600"
+      : "text-sm font-semibold tracking-tight text-slate-100"
   const cardEditBtnClass = isSample
     ? "ml-auto inline-flex cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-white/50 hover:text-slate-900 active:bg-white/70"
     : isLabSoftSlate
@@ -409,6 +463,16 @@ export function TimelineWorkspace({
   const cardCancelBtnClass = isSample || isLabSoftSlate
     ? "ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm text-rose-700 transition-colors hover:bg-rose-100 hover:text-rose-800"
     : "ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm text-rose-200 transition-colors hover:bg-rose-300/20 hover:text-rose-100"
+  const activityDetailSourceBadgeClass = isSample
+    ? "rounded-full border border-stone-400/60 bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-800"
+    : isLabSoftSlate
+      ? "rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-800"
+      : "rounded-full border border-white/45 bg-slate-900/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm"
+  const activityDetailPendingBadgeClass = isSample
+    ? "rounded-full border border-amber-400/70 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950"
+    : isLabSoftSlate
+      ? "rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950"
+      : "rounded-full border border-amber-200/55 bg-amber-600/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-50 shadow-sm"
   const fmtAmount = (n: number) => `$${n.toLocaleString()}`
 
   useEffect(() => {
@@ -640,7 +704,20 @@ export function TimelineWorkspace({
     setActivitySourceDraft(row.source)
     setActivityAccountDraft(row.accountLabel)
     setActivityAmountDraft(row.actual)
+    setActivityFlowDraft(row.flow)
     setIsEditingActivityDetails(false)
+  }
+
+  const openAddManualActivity = () => {
+    setSelectedActivityId(NEW_MANUAL_ACTIVITY_ID)
+    setActivityCategoryDraft("")
+    setActivityBudgetMonthDraft(selectedMonth)
+    setActivityDateDraft("")
+    setActivitySourceDraft("")
+    setActivityAccountDraft("")
+    setActivityAmountDraft(0)
+    setActivityFlowDraft("Expense")
+    setIsEditingActivityDetails(true)
   }
 
   const closeActivityDetails = (open: boolean) => {
@@ -652,12 +729,38 @@ export function TimelineWorkspace({
       setActivitySourceDraft("")
       setActivityAccountDraft("")
       setActivityAmountDraft(0)
+      setActivityFlowDraft("Expense")
       setIsEditingActivityDetails(false)
     }
   }
 
   const saveActivityDetails = () => {
-    if (!selectedActivity || !activityCategoryDraft || !activityBudgetMonthDraft) return
+    if (!selectedActivity || !activityCategoryDraft.trim() || !activityBudgetMonthDraft) return
+
+    if (isNewManualActivity) {
+      if (!canSaveNewManualActivity) return
+      const id = `manual-${crypto.randomUUID()}`
+      const amount = Math.max(0, activityAmountDraft)
+      const newRow: ActivityRow = {
+        id,
+        sourceType: "manual",
+        dateLabel: activityDateDraft.trim(),
+        postedDateLabel: activityDateDraft.trim(),
+        source: activitySourceDraft.trim(),
+        merchant: activitySourceDraft.trim(),
+        accountLabel: activityAccountDraft.trim(),
+        category: activityCategoryDraft.trim(),
+        flow: activityFlowDraft,
+        planned: amount,
+        actual: amount,
+        status: "Posted",
+        budgetMonthLabel: activityBudgetMonthDraft,
+      }
+      setManualActivityRows((prev) => [...prev, newRow])
+      closeActivityDetails(false)
+      return
+    }
+
     setActivityCategoryOverrides((prev) => ({ ...prev, [selectedActivity.id]: activityCategoryDraft }))
     setActivityBudgetMonthOverrides((prev) => ({
       ...prev,
@@ -671,6 +774,7 @@ export function TimelineWorkspace({
           source: activitySourceDraft,
           accountLabel: activityAccountDraft,
           actual: Math.max(0, activityAmountDraft),
+          flow: activityFlowDraft,
         },
       }))
     }
@@ -681,10 +785,15 @@ export function TimelineWorkspace({
     setActivitySourceDraft("")
     setActivityAccountDraft("")
     setActivityAmountDraft(0)
+    setActivityFlowDraft("Expense")
     setIsEditingActivityDetails(false)
   }
 
   const cancelActivityEdit = () => {
+    if (isNewManualActivity) {
+      closeActivityDetails(false)
+      return
+    }
     if (!selectedActivity) return
     setActivityCategoryDraft(selectedActivityCategory)
     setActivityBudgetMonthDraft(selectedActivityBudgetMonth)
@@ -692,6 +801,7 @@ export function TimelineWorkspace({
     setActivitySourceDraft(selectedActivity.source)
     setActivityAccountDraft(selectedActivity.accountLabel)
     setActivityAmountDraft(selectedActivity.actual)
+    setActivityFlowDraft(selectedActivity.flow)
     setIsEditingActivityDetails(false)
   }
 
@@ -707,7 +817,7 @@ export function TimelineWorkspace({
           </Link>
         </div>
       ) : null}
-      {(isEditingBudgets || isEditingIncome) && (
+      {(isEditingBudgets || isEditingIncome || !!selectedActivity) && (
         <div className="pointer-events-none fixed inset-0 z-10 bg-slate-900/20" />
       )}
       <div className={monthStripWrapClass}>
@@ -727,7 +837,7 @@ export function TimelineWorkspace({
               ? `${isSample ? "bg-stone-50/75" : "bg-white"} z-20 border-[#0087D2]/55 ring-1 ring-[#0087D2]/25`
               : cardShellClass
           } ${
-            isEditingIncome ? "opacity-45" : "opacity-100"
+            isEditingIncome || !!selectedActivity ? "opacity-45" : "opacity-100"
           }`}
           aria-labelledby="timeline-roadmap-heading"
         >
@@ -942,7 +1052,7 @@ export function TimelineWorkspace({
         <TimelineIncomeTankCard
           items={isEditingIncome ? incomeEditDraft : incomeItems}
           editMode={isEditingIncome}
-          muted={isEditingBudgets}
+          muted={isEditingBudgets || !!selectedActivity}
           elevated={isEditingIncome}
           headerTheme={isLabSoftSlate ? "softSlate" : isSample ? "sample" : "default"}
           onAmountChange={handleIncomeAmountChange}
@@ -991,20 +1101,421 @@ export function TimelineWorkspace({
         </div>
         </div>
         <section
-          className={`flex min-h-[12rem] min-w-0 flex-1 flex-col overflow-hidden rounded-sm border shadow-sm transition-opacity ${
-            cardShellClass
-          } ${isEditingBudgets || isEditingIncome ? "opacity-45" : "opacity-100"}`}
+          className={cn(
+            "flex min-w-0 flex-1 flex-col overflow-hidden rounded-sm border shadow-sm transition-opacity",
+            selectedActivity
+              ? "relative z-20 min-h-[min(82vh,40rem)] border-[#0087D2]/55 ring-1 ring-[#0087D2]/25 lg:min-h-[36rem]"
+              : "min-h-[12rem]",
+            cardShellClass,
+            (isEditingBudgets || isEditingIncome) && !selectedActivity ? "opacity-45" : "opacity-100",
+          )}
           aria-labelledby="timeline-activity-heading"
         >
           <header className={cardHeaderClass}>
-            <h2
-              id="timeline-activity-heading"
-              className={cardTitleClass}
-            >
-              March Activity
-            </h2>
+            <div className="relative z-20 flex min-w-0 items-center">
+              <h2
+                id="timeline-activity-heading"
+                className={cardTitleClass}
+              >
+                {selectedActivity
+                  ? isNewManualActivity
+                    ? "Add transaction"
+                    : "Transaction Details"
+                  : "March Activity"}
+              </h2>
+              {!selectedActivity ? (
+                <button
+                  type="button"
+                  onClick={openAddManualActivity}
+                  className={cardEditBtnClass}
+                >
+                  + Add
+                </button>
+              ) : null}
+              {selectedActivity ? (
+                <>
+                  <div className="ml-auto mr-8 flex flex-wrap items-center justify-end gap-2">
+                    <span className={activityDetailSourceBadgeClass}>
+                      {isNewManualActivity || selectedActivity.sourceType === "manual"
+                        ? "User entered"
+                        : "Imported"}
+                    </span>
+                    {selectedActivity.status !== "Posted" ? (
+                      <span className={activityDetailPendingBadgeClass}>
+                        {selectedActivity.status === "Processing" ? "Pending" : selectedActivity.status}
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => closeActivityDetails(false)}
+                    className="absolute right-0 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm bg-rose-600/95 text-white transition-colors hover:bg-rose-700"
+                    aria-label="Close transaction details"
+                    title="Close"
+                  >
+                    <span className="text-[14px] font-bold leading-none">x</span>
+                  </button>
+                </>
+              ) : null}
+            </div>
           </header>
-          <div className="min-h-0 flex-1 p-2">
+          <div className="relative min-h-0 flex-1 p-2">
+
+          {selectedActivity ? (
+            <div className="absolute inset-0 z-10 flex min-h-0 flex-col bg-white p-3 sm:p-4">
+              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+              <section className="w-full rounded-lg border border-slate-200 bg-slate-50/40 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:gap-3.5">
+                  {/* Category */}
+                  <div className="grid grid-cols-[minmax(4.5rem,6rem)_1fr] sm:grid-cols-[minmax(6rem,7.5rem)_1fr] items-center gap-3 sm:gap-4">
+                    <label className="text-right text-[12px] font-medium text-slate-500">
+                      Category
+                    </label>
+                    <div className="min-w-0">
+                      {isEditingActivityDetails ? (
+                        <Popover open={isCategoryComboboxOpen} onOpenChange={setIsCategoryComboboxOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={isCategoryComboboxOpen}
+                              className="h-8 w-full justify-between border-slate-300 px-2 py-1 text-[13px] font-normal font-medium text-slate-800 shadow-none hover:bg-slate-50"
+                            >
+                              {activityCategoryDraft ? (
+                                <span className="inline-flex items-center gap-1.5 truncate">
+                                  {renderCategoryGlyph(activityCategoryDraft, activityFlowDraft, activeCategories, { alwaysVisible: true })}
+                                  <span className="truncate">{activityCategoryDraft}</span>
+                                </span>
+                              ) : (
+                                <span className="font-normal text-slate-500">Select category...</span>
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search categories..." className="h-9 text-[13px]" />
+                              <CommandList className="max-h-[min(52vh,420px)]">
+                                <CommandEmpty className="py-2 text-center text-[12px] text-slate-500">
+                                  No category found.
+                                </CommandEmpty>
+
+                                <CommandGroup heading="Inflow">
+                                  <CommandItem
+                                    value="Income"
+                                    onSelect={() => {
+                                      setActivityCategoryDraft("Income")
+                                      setActivityFlowDraft("Income")
+                                      setIsCategoryComboboxOpen(false)
+                                    }}
+                                    className="text-[13px]"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        activityCategoryDraft === "Income" ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    {renderCategoryGlyph("Income", "Income", activeCategories, { alwaysVisible: true })}
+                                    <span className="ml-2">Income</span>
+                                  </CommandItem>
+                                </CommandGroup>
+
+                                <CommandGroup heading="Transfers & Debt">
+                                  <CommandItem
+                                    value="Transfer"
+                                    onSelect={() => {
+                                      setActivityCategoryDraft("Transfer")
+                                      setActivityFlowDraft("Transfer")
+                                      setIsCategoryComboboxOpen(false)
+                                    }}
+                                    className="text-[13px]"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        activityCategoryDraft === "Transfer" ? "opacity-100" : "opacity-0",
+                                      )}
+                                    />
+                                    {renderCategoryGlyph("Transfer", "Transfer", activeCategories, { alwaysVisible: true })}
+                                    <span className="ml-2">Transfer</span>
+                                  </CommandItem>
+                                </CommandGroup>
+
+                                <CommandGroup heading="Expenses">
+                                  {categoryOptions.map((option) => (
+                                    <CommandItem
+                                      key={option}
+                                      value={option}
+                                      onSelect={() => {
+                                        setActivityCategoryDraft(option)
+                                        setActivityFlowDraft("Expense")
+                                        setIsCategoryComboboxOpen(false)
+                                      }}
+                                      className="text-[13px]"
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          activityCategoryDraft === option ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      {renderCategoryGlyph(option, "Expense", activeCategories, { alwaysVisible: true })}
+                                      <span className="ml-2">{option}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[14px] font-medium text-slate-800">
+                          {renderCategoryGlyph(activityCategoryDraft, selectedActivity.flow, activeCategories, {
+                            alwaysVisible: true,
+                          })}
+                          <span>{activityCategoryDraft}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Date */}
+                  <div className="grid grid-cols-[minmax(4.5rem,6rem)_1fr] sm:grid-cols-[minmax(6rem,7.5rem)_1fr] items-center gap-3 sm:gap-4">
+                    <label className="text-right text-[12px] font-medium text-slate-500">Date</label>
+                    <div className="min-w-0">
+                      {isEditingActivityDetails && selectedActivityIsManual ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "h-8 w-full justify-start border-slate-300 px-2 text-left text-[13px] font-normal shadow-none",
+                                !activityDateDraft && "text-muted-foreground",
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                              {activityDateDraft ? (
+                                (() => {
+                                  const parts = activityDateDraft.split(" ")
+                                  if (parts.length === 2 && !isNaN(Number(parts[1]))) {
+                                    return activityDateDraft
+                                  }
+                                  return activityDateDraft || "Pick a date"
+                                })()
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={(() => {
+                                try {
+                                  if (!activityDateDraft) return new Date()
+                                  const currentYear = new Date().getFullYear()
+                                  const parsed = new Date(`${activityDateDraft} ${currentYear}`)
+                                  return isNaN(parsed.getTime()) ? new Date() : parsed
+                                } catch {
+                                  return new Date()
+                                }
+                              })()}
+                              onSelect={(date) => {
+                                if (date) {
+                                  setActivityDateDraft(format(date, "MMM d"))
+                                }
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-[14px] font-medium tabular-nums text-slate-800">
+                          {selectedActivity.postedDateLabel ?? "—"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="grid grid-cols-[minmax(4.5rem,6rem)_1fr] sm:grid-cols-[minmax(6rem,7.5rem)_1fr] items-center gap-3 sm:gap-4">
+                    <label className="text-right text-[12px] font-medium text-slate-500">Timeline</label>
+                    <div className="min-w-0">
+                      {isEditingActivityDetails ? (
+                        <Select
+                          value={activityBudgetMonthDraft}
+                          onValueChange={(value) => setActivityBudgetMonthDraft(value as MonthLabel)}
+                        >
+                          <SelectTrigger className="h-8 w-full rounded-sm border-slate-300 bg-white text-[13px] font-medium text-slate-800">
+                            <SelectValue placeholder="Select month" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {timelineMonthOptions.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                disabled={option.disabled}
+                              >
+                                <span className="inline-flex items-center gap-1.5">
+                                  {option.disabled ? (
+                                    <Lock className="h-3 w-3 shrink-0 stroke-[1.8] text-slate-400" aria-hidden />
+                                  ) : null}
+                                  <span>{option.label}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-[14px] font-medium text-slate-800">
+                          {monthLongNameFromLabel(activityBudgetMonthDraft)} Timeline
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Amount */}
+                  <div className="grid grid-cols-[minmax(4.5rem,6rem)_1fr] sm:grid-cols-[minmax(6rem,7.5rem)_1fr] items-center gap-3 sm:gap-4">
+                    <label className="text-right text-[12px] font-medium text-slate-500">Amount</label>
+                    <div className="relative min-w-0">
+                      {isEditingActivityDetails && selectedActivityIsManual ? (
+                        <div className="relative w-full max-w-[min(100%,20rem)]">
+                          {activityFlowDraft !== "Transfer" && (
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                              <span
+                                className={`text-[13px] font-semibold ${
+                                  activityFlowDraft === "Income" ? "text-emerald-600" : "text-slate-500"
+                                }`}
+                              >
+                                {activityFlowDraft === "Income" ? "+" : "-"}
+                              </span>
+                            </div>
+                          )}
+                          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-[26px]">
+                            <span className="text-[13px] text-slate-400">$</span>
+                          </div>
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={activityAmountDraft || ""}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === "") {
+                                setActivityAmountDraft(0)
+                                return
+                              }
+                              setActivityAmountDraft(Math.abs(Number(val)))
+                            }}
+                            className={`h-8 w-full rounded-sm border border-slate-300 bg-white pr-2 text-[14px] font-semibold text-slate-800 tabular-nums ${
+                              activityFlowDraft !== "Transfer" ? "pl-9" : "pl-7"
+                            } ${amountInter.className}`}
+                          />
+                        </div>
+                      ) : (
+                        <span
+                          className={`text-[15px] font-semibold tabular-nums ${amountInter.className} ${
+                            selectedActivity.flow === "Income"
+                              ? "text-emerald-700"
+                              : selectedActivity.flow === "Transfer"
+                                ? "text-slate-600"
+                                : "text-slate-800"
+                          }`}
+                        >
+                          {selectedActivity.flow === "Income" ? "+" : selectedActivity.flow === "Transfer" ? "" : "-"}
+                          {fmtAmount(selectedActivity.actual)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="grid grid-cols-[minmax(4.5rem,6rem)_1fr] sm:grid-cols-[minmax(6rem,7.5rem)_1fr] items-center gap-3 sm:gap-4">
+                    <label className="text-right text-[12px] font-medium text-slate-500">Description</label>
+                    <div className="min-w-0">
+                      {isEditingActivityDetails && selectedActivityIsManual ? (
+                        <input
+                          type="text"
+                          value={activitySourceDraft}
+                          onChange={(e) => setActivitySourceDraft(e.target.value)}
+                          className="h-8 w-full rounded-sm border border-slate-300 bg-white px-2 text-[14px] font-semibold text-slate-800"
+                        />
+                      ) : (
+                        <span className="block truncate text-[15px] font-semibold tracking-tight text-slate-800">
+                          {selectedActivity.source}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Account */}
+                  <div className="grid grid-cols-[minmax(4.5rem,6rem)_1fr] sm:grid-cols-[minmax(6rem,7.5rem)_1fr] items-center gap-3 sm:gap-4">
+                    <label className="text-right text-[12px] font-medium text-slate-500">Account</label>
+                    <div className="min-w-0">
+                      {isEditingActivityDetails && selectedActivityIsManual ? (
+                        <input
+                          type="text"
+                          value={activityAccountDraft}
+                          onChange={(e) => setActivityAccountDraft(e.target.value)}
+                          className="h-8 w-full rounded-sm border border-slate-300 bg-white px-2 text-[14px] font-semibold text-slate-800"
+                        />
+                      ) : (
+                        <span className="block truncate text-[14px] font-medium text-slate-800">
+                          {selectedActivityAccountDisplay}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+              </div>
+
+              <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-slate-200 bg-white pt-3">
+                {!isEditingActivityDetails ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => closeActivityDetails(false)}
+                      className="rounded-sm bg-rose-600 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-rose-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingActivityDetails(true)}
+                      className="rounded-sm bg-[#0087D2] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#006BB3]"
+                    >
+                      Edit
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={cancelActivityEdit}
+                      className="rounded-sm bg-rose-600 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-rose-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveActivityDetails}
+                      disabled={!hasPendingActivityChanges}
+                      className={`rounded-sm px-2 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-sm ${
+                        hasPendingActivityChanges
+                          ? "bg-[#0087D2] text-white hover:bg-[#006BB3]"
+                          : "cursor-not-allowed bg-slate-200 text-slate-400 shadow-none"
+                      }`}
+                    >
+                      Save
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
             <Table className="text-[11px]">
               <TableHeader>
                 <TableRow className="border-slate-200 hover:bg-transparent">
@@ -1080,10 +1591,10 @@ export function TimelineWorkspace({
                     </TableCell>
                     <TableCell
                       className={`px-2 py-1.5 text-right text-[11px] tabular-nums ${amountInter.className} ${
-                        row.flow === "Income" ? "text-emerald-700" : "text-slate-700"
+                        row.flow === "Income" ? "text-emerald-700" : row.flow === "Transfer" ? "text-slate-500" : "text-slate-700"
                       }`}
                     >
-                      {row.flow === "Income" ? "+" : "-"}{fmtAmount(row.actual)}
+                      {row.flow === "Income" ? "+" : row.flow === "Transfer" ? "" : "-"}{fmtAmount(row.actual)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1122,200 +1633,11 @@ export function TimelineWorkspace({
                 </div>
               ) : null}
             </div>
+            </>
+          )}
           </div>
         </section>
       </div>
-      <Dialog open={Boolean(selectedActivity)} onOpenChange={closeActivityDetails}>
-        <DialogContent className="w-full max-w-2xl gap-0 border-slate-200 bg-white p-0 shadow-xl sm:max-w-2xl">
-          <div className="bg-white px-5 pb-1 pt-4">
-            <div className="flex items-center gap-2">
-              <DialogTitle className="text-base font-semibold tracking-tight text-slate-800">
-                Transaction Details
-              </DialogTitle>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                {selectedActivity?.sourceType === "bank_import" ? "Imported from bank" : "User entered"}
-              </span>
-              {selectedActivity && selectedActivity.status !== "Posted" ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700">
-                  {selectedActivity.status === "Processing" ? "Pending" : selectedActivity.status}
-                </span>
-              ) : null}
-            </div>
-          </div>
-          {selectedActivity ? (
-            <div className="space-y-4 px-5 pb-5 pt-1">
-              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-5 gap-y-2">
-                  {/* Row 1: date | transaction | amount */}
-                  <div className="pr-10 text-[11px] font-medium tabular-nums text-slate-500">
-                    {isEditingActivityDetails && selectedActivityIsManual ? (
-                      <input
-                        type="text"
-                        value={activityDateDraft}
-                        onChange={(e) => setActivityDateDraft(e.target.value)}
-                        className="h-7 w-[4.75rem] rounded-sm border border-slate-300 bg-white px-1.5 text-[11px] text-slate-700"
-                      />
-                    ) : (
-                      selectedActivity.postedDateLabel ?? "—"
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    {isEditingActivityDetails && selectedActivityIsManual ? (
-                      <input
-                        type="text"
-                        value={activitySourceDraft}
-                        onChange={(e) => setActivitySourceDraft(e.target.value)}
-                        className="h-8 w-full rounded-sm border border-slate-300 bg-white px-2 text-[14px] font-semibold text-slate-800"
-                      />
-                    ) : (
-                      <p className="truncate text-[15px] font-semibold tracking-tight text-slate-800">
-                        {selectedActivity.source}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end">
-                    {isEditingActivityDetails && selectedActivityIsManual ? (
-                      <input
-                        type="number"
-                        min={0}
-                        value={activityAmountDraft}
-                        onChange={(e) => setActivityAmountDraft(Math.max(0, Number(e.target.value) || 0))}
-                        className={`h-8 w-[6.5rem] rounded-sm border border-slate-300 bg-white px-2 text-right text-[14px] font-semibold text-slate-800 ${amountInter.className}`}
-                      />
-                    ) : (
-                      <p
-                        className={`text-[1.05rem] font-semibold tabular-nums ${amountInter.className} ${
-                          selectedActivity.flow === "Income" ? "text-emerald-700" : "text-slate-800"
-                        }`}
-                      >
-                        {selectedActivity.flow === "Income" ? "+" : "-"}
-                        {fmtAmount(selectedActivity.actual)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Row 2: timeline under date | category | account */}
-                  <div className="flex flex-col gap-0.5 pr-10">
-                    {isEditingActivityDetails ? (
-                      <Select
-                        value={activityBudgetMonthDraft}
-                        onValueChange={(value) => setActivityBudgetMonthDraft(value as MonthLabel)}
-                      >
-                        <SelectTrigger className="h-6 w-fit min-w-0 max-w-[9rem] rounded-md border-slate-200 bg-white px-2 text-left text-[11px] font-medium text-slate-500 [&>span]:truncate">
-                          <SelectValue placeholder="Select month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timelineMonthOptions.map((option) => (
-                            <SelectItem
-                              key={option.value}
-                              value={option.value}
-                              disabled={option.disabled}
-                            >
-                              <span className="inline-flex items-center gap-1.5">
-                                {option.disabled ? (
-                                  <Lock className="h-3 w-3 shrink-0 text-slate-400 stroke-[1.8]" aria-hidden />
-                                ) : null}
-                                <span>{option.label}</span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className="text-[11px] font-medium text-slate-500">
-                        {monthLongNameFromLabel(activityBudgetMonthDraft)} Timeline
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0 w-[12rem] max-w-full">
-                    {isEditingActivityDetails && selectedActivity.flow === "Expense" ? (
-                      <Select value={activityCategoryDraft} onValueChange={setActivityCategoryDraft}>
-                        <SelectTrigger className="h-7 rounded-md border-slate-300 bg-white text-left text-[11px] text-slate-700">
-                          <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {activityCategorySelectOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              <span className="inline-flex items-center gap-1.5">
-                                {renderCategoryGlyph(option, selectedActivity.flow, activeCategories, {
-                                  alwaysVisible: true,
-                                })}
-                                <span>{option}</span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="inline-flex max-w-full items-center gap-1.5 truncate text-[11px] text-slate-500">
-                        {renderCategoryGlyph(activityCategoryDraft, selectedActivity.flow, activeCategories, {
-                          alwaysVisible: true,
-                        })}
-                        <span className="truncate">{activityCategoryDraft}</span>
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end justify-end">
-                    {isEditingActivityDetails && selectedActivityIsManual ? (
-                      <input
-                        type="text"
-                        value={activityAccountDraft}
-                        onChange={(e) => setActivityAccountDraft(e.target.value)}
-                        className="h-auto border-0 bg-transparent p-0 text-right text-[10px] font-medium text-slate-400 shadow-none outline-none ring-0 focus-visible:ring-0"
-                      />
-                    ) : (
-                      <p className="text-[10px] font-medium text-slate-400">{selectedActivityAccountDisplay}</p>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              <div className="flex items-center justify-end gap-2 pt-1">
-                {!isEditingActivityDetails ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => closeActivityDetails(false)}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50"
-                    >
-                      Close
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingActivityDetails(true)}
-                      className="rounded-md bg-[#0087D2] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#006BB3]"
-                    >
-                      Edit
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={cancelActivityEdit}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={saveActivityDetails}
-                      disabled={!hasPendingActivityChanges}
-                      className={`rounded-md px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
-                        hasPendingActivityChanges
-                          ? "bg-[#0087D2] text-white hover:bg-[#006BB3]"
-                          : "cursor-not-allowed bg-slate-200 text-slate-400"
-                      }`}
-                    >
-                      Save Changes
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
       <SettleUpModal 
         isOpen={isSettleUpOpen} 
         onOpenChange={setIsSettleUpOpen} 

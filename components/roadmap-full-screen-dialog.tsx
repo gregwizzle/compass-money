@@ -32,7 +32,7 @@ export function RoadmapFullScreenDialog({
         )}
       >
         <div className="flex shrink-0 items-center border-b border-slate-200 bg-slate-50/95 px-4 py-3 pr-14">
-          <DialogTitle className="text-base font-black tracking-tight text-slate-900">
+          <DialogTitle className="text-base font-black tracking-tight text-slate-950">
             {monthTitle} Roadmap
           </DialogTitle>
         </div>

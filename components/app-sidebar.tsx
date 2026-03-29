@@ -52,7 +52,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
             <span
               className={cn(
                 compassWordmark.className,
-                "text-[18px] font-bold uppercase tracking-[-0.02em] text-slate-800",
+                "text-[18px] font-bold uppercase tracking-[-0.02em] text-slate-600",
               )}
             >
               COMPASS
@@ -60,7 +60,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
             <span
               className={cn(
                 compassWordmark.className,
-                "mt-0.5 text-[11px] font-medium lowercase tracking-wide text-slate-600/85 [font-variant-ligatures:none]",
+                "mt-0.5 text-[11px] font-medium lowercase tracking-wide text-slate-600 [font-variant-ligatures:none]",
               )}
             >
               money

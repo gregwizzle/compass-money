@@ -78,10 +78,10 @@ export function TimelineIncomeTankCard({
       ? "shrink-0 border-b border-slate-300 bg-white px-3 py-2.5"
       : "shrink-0 border-b border-slate-700 bg-slate-700/80 px-3 py-2.5"
   const titleClass = sampleTheme
-    ? "text-sm font-semibold tracking-tight text-slate-800"
+    ? "text-sm font-semibold tracking-tight text-slate-900"
     : softSlateTheme
-      ? "text-[15px] font-bold tracking-tight text-slate-500"
-      : "text-sm font-semibold tracking-tight text-slate-50"
+      ? "text-[15px] font-bold tracking-tight text-slate-600"
+      : "text-sm font-semibold tracking-tight text-slate-100"
   const editBtnClass = sampleTheme
     ? "ml-auto inline-flex cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-white/50 hover:text-slate-900 active:bg-white/70"
     : softSlateTheme
@@ -341,35 +341,35 @@ export function TimelineIncomeTankCard({
             )}
           </div>
           {!editMode && (
-            <div className="relative w-10 shrink-0 self-stretch">
-              <p className="absolute right-0 top-0 z-10 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="relative flex w-10 shrink-0 flex-col self-stretch">
+              <p className="shrink-0 text-right text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                 Expected
               </p>
               <p
-                className={`absolute right-0 top-3 z-10 text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
+                className={`shrink-0 pt-0.5 text-right text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
               >
                 {fmt(total)}
               </p>
-              <p
-                className={`absolute right-0 z-10 text-[11px] font-semibold italic leading-none tabular-nums text-emerald-800 ${amountInter.className}`}
-                style={{
-                  bottom: `clamp(0.125rem, calc(${fillPct}% + 0.0625rem), calc(100% - 1.75rem))`,
-                }}
-              >
-                {fmt(received)}
-              </p>
-              <div className="absolute bottom-0 left-1/2 top-7 w-2 -translate-x-1/2 overflow-hidden rounded-[3px] bg-slate-200/70 ring-1 ring-slate-300/50">
-                <div
-                  className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 to-emerald-400 transition-all duration-500"
-                  style={{ height: `${fillPct}%` }}
-                />
-                {fillPct > 0 ? (
-                  <span
-                    aria-hidden
-                    className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-200 ring-1 ring-emerald-500/60"
-                    style={{ bottom: `calc(${fillPct}% - 3px)` }}
+              <div className="relative mt-1 min-h-[5rem] flex-1">
+                <p
+                  className={`absolute right-0 z-10 text-[11px] font-semibold italic leading-none tabular-nums text-emerald-800 ${amountInter.className}`}
+                  style={{ bottom: `calc(${fillPct}% + 5px)` }}
+                >
+                  {fmt(received)}
+                </p>
+                <div className="absolute inset-0 left-1/2 w-2 -translate-x-1/2 overflow-hidden rounded-[3px] bg-slate-200/70 ring-1 ring-slate-300/50">
+                  <div
+                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 to-emerald-400 transition-all duration-500"
+                    style={{ height: `${fillPct}%` }}
                   />
-                ) : null}
+                  {fillPct > 0 ? (
+                    <span
+                      aria-hidden
+                      className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-200 ring-1 ring-emerald-500/60"
+                      style={{ bottom: `calc(${fillPct}% - 3px)` }}
+                    />
+                  ) : null}
+                </div>
               </div>
             </div>
           )}

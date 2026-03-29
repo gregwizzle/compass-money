@@ -31,7 +31,7 @@ export function MonthRoadmapPanel({ monthTitle, categories, className }: MonthRo
         <header className="flex shrink-0 flex-row items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/80 px-3 py-2.5">
           <h2
             id="month-roadmap-heading"
-            className="min-w-0 truncate text-sm font-black tracking-tight text-slate-900"
+            className="min-w-0 truncate text-sm font-black tracking-tight text-slate-950"
           >
             {monthTitle} Roadmap
           </h2>
