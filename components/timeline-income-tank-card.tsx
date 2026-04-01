@@ -36,7 +36,7 @@ type TimelineIncomeTankCardProps = {
 }
 
 /**
- * Timeline column card: expected income lines for April planning.
+ * Timeline Income Dock: expected income lines for April planning.
  */
 export function TimelineIncomeTankCard({
   items,
@@ -104,15 +104,15 @@ export function TimelineIncomeTankCard({
       } ${
         muted ? "opacity-45" : "opacity-100"
       } ${elevated ? "z-20" : ""}`}
-      aria-labelledby="timeline-income-tank-heading"
+      aria-labelledby="timeline-income-dock-heading"
     >
       <header className={headerClass}>
         <div className="relative z-20 flex min-w-0 items-center">
           <h2
-            id="timeline-income-tank-heading"
+            id="timeline-income-dock-heading"
             className={titleClass}
           >
-            Income
+            Income Dock
           </h2>
           {editMode ? (
             <span className="ml-auto mr-8 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -132,7 +132,7 @@ export function TimelineIncomeTankCard({
               type="button"
               onClick={onCancelEdit}
               className="absolute right-0 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm bg-rose-600/95 text-white transition-colors hover:bg-rose-700"
-              aria-label="Cancel income editing"
+              aria-label="Cancel Income Dock editing"
               title="Cancel"
             >
               <span className="text-[14px] font-bold leading-none">x</span>
