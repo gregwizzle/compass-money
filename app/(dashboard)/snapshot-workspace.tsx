@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { Check, CircleDollarSign, RefreshCw, Wallet } from "lucide-react"
+import { AlertTriangle, Check, ChevronRight, CircleDollarSign, RefreshCw, Wallet, Zap } from "lucide-react"
 import { MonthStrip, useMonthSelection } from "@/components/month-strip"
 import { CATEGORY_GLYPH } from "@/components/roadmap-categories-grid"
 import { TimelineIncomeTankCard } from "@/components/timeline-income-tank-card"
@@ -46,6 +46,78 @@ import {
 } from "@/lib/budget-month"
 
 type IncomeDraftItem = ExpectedIncomeLine & { markedForDeletion?: boolean }
+type CreditOutpostCycle = {
+  id: string
+  cardLabel: string
+  lastFour: string
+  cycleLabel: string
+  newSpending: number
+  reservedPaymentFunds: number
+  dueDateLabel: string
+  minimumDue: number
+  isPastDue: boolean
+}
+
+const SNAPSHOT_CREDIT_OUTPOST: CreditOutpostCycle[] = [
+  {
+    id: "visa-cycle-1",
+    cardLabel: "Visa",
+    lastFour: "1234",
+    cycleLabel: "Jan 12 - Feb 11",
+    newSpending: 700,
+    reservedPaymentFunds: 700,
+    dueDateLabel: "Mar 5",
+    minimumDue: 45,
+    isPastDue: false,
+  },
+  {
+    id: "mastercard-cycle-4",
+    cardLabel: "Mastercard",
+    lastFour: "5678",
+    cycleLabel: "Jan 20 - Feb 19",
+    newSpending: 10,
+    reservedPaymentFunds: 0,
+    dueDateLabel: "Mar 14",
+    minimumDue: 45,
+    isPastDue: false,
+  },
+]
+
+type CreditOutpostCurrentCycle = {
+  id: string
+  cardLabel: string
+  lastFour: string
+  cycleLabel: string
+  currentSpending: number
+  reservedPaymentFunds: number
+  /** Set once the issuer shows a due date (often after close); omit while the cycle is open. */
+  dueDateLabel?: string | null
+}
+
+const SNAPSHOT_CREDIT_CURRENT: CreditOutpostCurrentCycle[] = [
+  {
+    id: "visa-current",
+    cardLabel: "Visa",
+    lastFour: "1234",
+    cycleLabel: "Feb 12 - Mar 11",
+    currentSpending: 150,
+    reservedPaymentFunds: 75,
+    dueDateLabel: null,
+  },
+  {
+    id: "mastercard-current",
+    cardLabel: "Mastercard",
+    lastFour: "5678",
+    cycleLabel: "Feb 20 - Mar 19",
+    currentSpending: 0,
+    reservedPaymentFunds: 0,
+    dueDateLabel: "Apr 8",
+  },
+]
+
+/** Same hover / border treatment as Credit Card Payments rows. */
+const CREDIT_OUTPOST_ROW_BUTTON_CLASS =
+  "group w-full min-w-0 cursor-pointer rounded-lg border border-slate-200/80 border-l-slate-200 bg-gradient-to-b from-white to-slate-50/90 px-2 py-2 text-left shadow-sm transition-colors duration-150 hover:border-slate-300/90 hover:from-sky-50 hover:to-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0087D2] focus-visible:ring-offset-1 sm:px-3"
 
 function fmtCurrencyPlain(n: number) {
   const sign = n < 0 ? "-" : ""
@@ -60,6 +132,34 @@ function fmtCurrencyPlain(n: number) {
 
 function fmtDollars(n: number) {
   return `$${n.toLocaleString()}`
+}
+
+function fmtCreditCardName(cardLabel: string, lastFour: string) {
+  return `${cardLabel} · ${lastFour}`
+}
+
+/** Credit Outpost: always "Mar 5" (short month + day). */
+function fmtCreditDueDisplay(dueDateLabel: string) {
+  const raw = dueDateLabel.trim()
+  const parts = raw.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    const m = parts[0]!
+    const d = parts[1]!
+    const month = m.charAt(0).toUpperCase() + m.slice(1).toLowerCase()
+    return `${month} ${d}`
+  }
+  return raw
+}
+
+/** Same template on header + each payment row. minmax(0,fr) lets the grid shrink inside the card—no horizontal scroll. */
+const CREDIT_PAYMENT_ROW_GRID_CLASS =
+  "grid w-full min-w-0 grid-cols-[minmax(0,0.52fr)_minmax(0,1.45fr)_minmax(0,0.88fr)_minmax(0,0.88fr)_minmax(0,0.90fr)] items-center gap-x-1.5 sm:gap-x-2"
+
+/** e.g. "Jan 12 - Feb 11" → "Feb 11" */
+function statementClosedLabelFromCycle(cycleLabel: string) {
+  const parts = cycleLabel.split(/\s+-\s+/)
+  const last = parts[parts.length - 1]?.trim()
+  return last && last.length > 0 ? last : cycleLabel.trim()
 }
 
 const categoryGlyphClass =
@@ -136,6 +236,8 @@ export function SnapshotWorkspace() {
   const [isEditingIncome, setIsEditingIncome] = useState(false)
   const [isSettleUpOpen, setIsSettleUpOpen] = useState(false)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [selectedCreditCycleId, setSelectedCreditCycleId] = useState<string | null>(null)
+  const [selectedCurrentCycleId, setSelectedCurrentCycleId] = useState<string | null>(null)
   const [roadmapCardMinHeight, setRoadmapCardMinHeight] = useState<number>(0)
   const isReadyToCashOut = false
 
@@ -167,6 +269,14 @@ export function SnapshotWorkspace() {
   const selectedActivity = useMemo(
     () => sortedActivityRows.find((row) => row.id === selectedActivityId) ?? null,
     [selectedActivityId, sortedActivityRows],
+  )
+  const selectedCreditCycle = useMemo(
+    () => SNAPSHOT_CREDIT_OUTPOST.find((cycle) => cycle.id === selectedCreditCycleId) ?? null,
+    [selectedCreditCycleId],
+  )
+  const selectedCurrentCycle = useMemo(
+    () => SNAPSHOT_CREDIT_CURRENT.find((cycle) => cycle.id === selectedCurrentCycleId) ?? null,
+    [selectedCurrentCycleId],
   )
   const paidCount = paid.length
   const { expectedNet, totalBudget, livingOverage } = useMemo(() => getSnapshotExpectedCashout(), [])
@@ -329,7 +439,7 @@ export function SnapshotWorkspace() {
                       className="min-h-[1em] min-w-[1.5rem] flex-1 bg-[radial-gradient(circle,_currentColor_0.85px,_transparent_1.2px)] bg-[length:6px_3px] bg-repeat-x bg-bottom text-slate-300"
                       aria-hidden
                     />
-                    <span className="font-medium italic tabular-nums">{paidCount} Paid Bills</span>
+                    <span className="font-medium italic tabular-nums">{paidCount} Bills Paid</span>
                     <span
                       className="min-h-[1em] min-w-[1.5rem] flex-1 bg-[radial-gradient(circle,_currentColor_0.85px,_transparent_1.2px)] bg-[length:6px_3px] bg-repeat-x bg-bottom text-slate-300"
                       aria-hidden
@@ -499,24 +609,224 @@ export function SnapshotWorkspace() {
             </div>
           </section>
 
-          <TimelineIncomeTankCard
-            items={isEditingIncome ? incomeEditDraft : incomeItems}
-            editMode={isEditingIncome}
-            muted={false}
-            elevated={isEditingIncome}
-            headerTheme="softSlate"
-            onAmountChange={handleIncomeAmountChange}
-            onLabelChange={handleIncomeLabelChange}
-            onStartEdit={startIncomeEdit}
-            onSaveEdit={saveIncomeEdit}
-            onCancelEdit={cancelIncomeEdit}
-            onToggleDelete={handleIncomeToggleDelete}
-            onAddItem={addIncomeItem}
-          />
+          <section
+            className={`relative flex w-full min-w-0 flex-col overflow-hidden rounded-sm border shadow-sm ${cardShellClass}`}
+            aria-labelledby="snapshot-credit-outpost-heading"
+          >
+            <header className={cardHeaderClass}>
+              <h2 id="snapshot-credit-outpost-heading" className={cardTitleClass}>
+                Credit Outpost
+              </h2>
+            </header>
+            <div className="relative z-10 min-w-0 space-y-4 bg-slate-50/40 p-3">
+              <div className="px-2.5 sm:px-3">
+                <h3 className="mb-2 text-[12px] font-semibold text-slate-700">
+                  Credit Card Payments
+                </h3>
+                <div className="min-w-0 space-y-2 pl-3 sm:pl-4">
+                  <div
+                    className={cn(
+                      CREDIT_PAYMENT_ROW_GRID_CLASS,
+                      "items-end px-2 sm:px-3",
+                    )}
+                    role="row"
+                  >
+                    <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                      Due
+                    </span>
+                    <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                      Card
+                    </span>
+                    <span className="text-center text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
+                      <span className="block">Reserved</span>
+                      <span className="mt-0.5 block">funds</span>
+                    </span>
+                    <span className="text-center text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
+                      <span className="block">New</span>
+                      <span className="mt-0.5 block">spending</span>
+                    </span>
+                    <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                      Status
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                      {SNAPSHOT_CREDIT_OUTPOST.map((cycle) => {
+                        const reserved = cycle.reservedPaymentFunds
+                        const minDue = cycle.minimumDue
+                        const isPaymentReady = reserved >= minDue
+                        const isMinDue = reserved === 0
+
+                        const status =
+                          reserved === minDue
+                            ? { text: "Payment Ready", cls: "text-emerald-700" }
+                            : reserved === 0
+                              ? { text: `${fmtDollars(minDue)} Min Due`, cls: "text-amber-700" }
+                              : reserved < minDue
+                                ? {
+                                    text: `🔴 ${fmtDollars(minDue - reserved)} Short`,
+                                    cls: "text-rose-700",
+                                  }
+                                : { text: "Payment Ready", cls: "text-emerald-700" }
+                        const dueDisplay = fmtCreditDueDisplay(cycle.dueDateLabel)
+
+                        return (
+                          <li key={cycle.id} className="min-w-0">
+                            <button
+                              type="button"
+                              className={CREDIT_OUTPOST_ROW_BUTTON_CLASS}
+                              aria-label={`Open settlement for ${fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}`}
+                              onClick={() => {
+                                setSelectedCurrentCycleId(null)
+                                setSelectedCreditCycleId(cycle.id)
+                              }}
+                            >
+                              <div className={CREDIT_PAYMENT_ROW_GRID_CLASS} role="row">
+                                <span
+                                  className={`block text-center text-[11px] font-medium tabular-nums text-slate-600 ${amountInter.className}`}
+                                >
+                                  {dueDisplay}
+                                </span>
+                                <div className="min-w-0 self-center py-0.5">
+                                  <div className="break-words text-[12px] font-semibold leading-snug text-slate-800">
+                                    {fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}
+                                  </div>
+                                  <div className="break-words text-[10px] leading-snug text-slate-500">
+                                    Statement Closed {statementClosedLabelFromCycle(cycle.cycleLabel)}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`block text-center text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
+                                >
+                                  {fmtDollars(cycle.reservedPaymentFunds)}
+                                </span>
+                                <span
+                                  className={`block text-center text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
+                                >
+                                  {fmtDollars(cycle.newSpending)}
+                                </span>
+                                <div className="w-full text-center">
+                                  <span
+                                    className={`flex w-full items-center justify-center gap-1 px-2 text-[9px] font-semibold leading-none tracking-normal ${status.cls}`}
+                                  >
+                                    {isMinDue ? (
+                                      <AlertTriangle
+                                        className="h-3 w-3 shrink-0 stroke-[2]"
+                                        aria-hidden
+                                      />
+                                    ) : null}
+                                    {isPaymentReady ? (
+                                      <Zap
+                                        className="h-3 w-3 shrink-0 stroke-[2]"
+                                        aria-hidden
+                                      />
+                                    ) : null}
+                                    <span className="shrink-0">{status.text}</span>
+                                    <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          </li>
+                        )
+                      })}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="pt-3">
+                <div className="px-2.5 sm:px-3">
+                  <h3 className="mb-2 text-[12px] font-semibold text-slate-700">
+                    Current Statement Cycles
+                  </h3>
+                  <div className="min-w-0 space-y-2 pl-3 sm:pl-4">
+                    <div
+                      className={cn(
+                        CREDIT_PAYMENT_ROW_GRID_CLASS,
+                        "items-end px-2 sm:px-3",
+                      )}
+                      role="row"
+                    >
+                      <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                        Due
+                      </span>
+                      <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                        Card
+                      </span>
+                      <span className="text-center text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
+                        <span className="block">Reserved</span>
+                        <span className="mt-0.5 block">funds</span>
+                      </span>
+                      <span className="text-center text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
+                        <span className="block">New</span>
+                        <span className="mt-0.5 block">spending</span>
+                      </span>
+                      <span className="text-center text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                        Status
+                      </span>
+                    </div>
+                    <ul className="space-y-2">
+                      {SNAPSHOT_CREDIT_CURRENT.map((cycle) => {
+                        // Current cycles often don't have a due date yet; keep it visually consistent.
+                        const dueCell = (
+                          <span
+                            className={`block text-center text-[11px] font-medium text-slate-400 ${amountInter.className}`}
+                          >
+                            -
+                          </span>
+                        )
+
+                        return (
+                          <li key={cycle.id} className="min-w-0">
+                            <button
+                              type="button"
+                              className={CREDIT_OUTPOST_ROW_BUTTON_CLASS}
+                              aria-label={`View current cycle for ${fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}`}
+                              onClick={() => {
+                                setSelectedCreditCycleId(null)
+                                setSelectedCurrentCycleId(cycle.id)
+                              }}
+                            >
+                              <div className={CREDIT_PAYMENT_ROW_GRID_CLASS} role="row">
+                                {dueCell}
+                                <div className="min-w-0 self-center py-0.5">
+                                  <div className="break-words text-[12px] font-semibold leading-snug text-slate-800">
+                                    {fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}
+                                  </div>
+                                  <div className="break-words text-[10px] leading-snug text-slate-500">
+                                    Statement Closes {statementClosedLabelFromCycle(cycle.cycleLabel)}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`block text-center text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
+                                >
+                                  {fmtDollars(cycle.reservedPaymentFunds)}
+                                </span>
+                                <span
+                                  className={`block text-center text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
+                                >
+                                  {fmtDollars(cycle.currentSpending)}
+                                </span>
+                                <div className="text-center">
+                                  <span className="inline-flex max-w-full items-center justify-center gap-1 text-[9px] font-semibold leading-none tracking-normal text-slate-500">
+                                    <span className="shrink-0">Accumulating</span>
+                                    <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                                  </span>
+                                </div>
+                              </div>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
           <section
             className={cn(
               "flex min-h-[12rem] min-w-0 flex-1 flex-col overflow-hidden rounded-sm border shadow-sm",
@@ -623,7 +933,23 @@ export function SnapshotWorkspace() {
               </div>
             </div>
           </section>
-          <div className="mt-3 mb-2 flex flex-col items-center justify-center gap-1">
+
+          <TimelineIncomeTankCard
+            items={isEditingIncome ? incomeEditDraft : incomeItems}
+            editMode={isEditingIncome}
+            muted={false}
+            elevated={isEditingIncome}
+            headerTheme="softSlate"
+            onAmountChange={handleIncomeAmountChange}
+            onLabelChange={handleIncomeLabelChange}
+            onStartEdit={startIncomeEdit}
+            onSaveEdit={saveIncomeEdit}
+            onCancelEdit={cancelIncomeEdit}
+            onToggleDelete={handleIncomeToggleDelete}
+            onAddItem={addIncomeItem}
+          />
+
+          <div className="mb-2 flex flex-col items-center justify-center gap-1">
             <button
               type="button"
               onClick={() => setIsSettleUpOpen(true)}
@@ -714,6 +1040,153 @@ export function SnapshotWorkspace() {
                       {selectedActivity.source}
                     </span>
                   </div>
+                </div>
+              </section>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!selectedCreditCycle}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCreditCycleId(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          {selectedCreditCycle ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  Settle {fmtCreditCardName(selectedCreditCycle.cardLabel, selectedCreditCycle.lastFour)}
+                </DialogTitle>
+              </DialogHeader>
+              <section className="rounded-lg border border-slate-200 bg-slate-50/40 p-4 sm:p-5">
+                {(() => {
+                  const isUnfunded = selectedCreditCycle.reservedPaymentFunds < selectedCreditCycle.minimumDue
+                  
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[14px] font-semibold text-slate-700">
+                          {fmtCreditCardName(selectedCreditCycle.cardLabel, selectedCreditCycle.lastFour)} (
+                          {selectedCreditCycle.cycleLabel})
+                        </p>
+                      </div>
+
+                      {isUnfunded ? (
+                        <>
+                          <div className="space-y-1.5">
+                            <DottedLeaderRow left={<span>Converted to Debt</span>} right={<span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>{fmtDollars(selectedCreditCycle.newSpending)}</span>} />
+                            <DottedLeaderRow left={<span>Reserved Payment Funds</span>} right={<span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>{fmtDollars(selectedCreditCycle.reservedPaymentFunds)}</span>} />
+                            <DottedLeaderRow left={<span>Minimum Due</span>} right={<span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>{fmtDollars(selectedCreditCycle.minimumDue)}</span>} />
+                          </div>
+                          
+                          <div className="rounded border border-amber-200 bg-amber-50/50 px-3 py-2">
+                            <p className="text-[11px] font-medium text-amber-900">
+                              Your reserved funds do not cover the bank's minimum payment. Choose how to fund the remaining {fmtDollars(Math.max(0, selectedCreditCycle.minimumDue - selectedCreditCycle.reservedPaymentFunds))}.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <Link href="/accounts" className="inline-flex rounded bg-slate-800 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white hover:bg-slate-700">
+                              Pay from {monthLongNameFromLabel(selectedMonth)} Income
+                            </Link>
+                            <Link href="/accounts" className="inline-flex rounded bg-slate-200 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700 hover:bg-slate-300">
+                              Pay from My Stash
+                            </Link>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="space-y-1.5">
+                            <DottedLeaderRow left={<span>New Spending</span>} right={<span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>{fmtDollars(selectedCreditCycle.newSpending)}</span>} />
+                            <DottedLeaderRow left={<span>Reserved Payment Funds</span>} right={<span className={`font-semibold tabular-nums text-emerald-700 ${amountInter.className}`}>{fmtDollars(selectedCreditCycle.reservedPaymentFunds)}</span>} />
+                          </div>
+
+                          <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                            <p className="text-[11px] font-medium text-slate-600">
+                              Your budget successfully secured these funds during cashout. Complete the bank transfer to{" "}
+                              {fmtCreditCardName(selectedCreditCycle.cardLabel, selectedCreditCycle.lastFour)} to clear
+                              this cycle.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <Link href="/accounts" className="inline-flex rounded bg-[#0087D2] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-white hover:bg-[#00487A]">
+                              Transfer Payment
+                            </Link>
+                          </div>
+                          
+                          <p className={`text-[10px] font-medium text-slate-400 ${amountInter.className}`}>
+                            Side note: Minimum due from issuer is {fmtDollars(selectedCreditCycle.minimumDue)} by{" "}
+                            {fmtCreditDueDisplay(selectedCreditCycle.dueDateLabel)}.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )
+                })()}
+              </section>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!selectedCurrentCycle}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCurrentCycleId(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          {selectedCurrentCycle ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  Current cycle · {fmtCreditCardName(selectedCurrentCycle.cardLabel, selectedCurrentCycle.lastFour)}
+                </DialogTitle>
+              </DialogHeader>
+              <section className="rounded-lg border border-slate-200 bg-slate-50/40 p-4 sm:p-5">
+                <div className="space-y-3">
+                  <p className="text-[14px] font-semibold text-slate-700">
+                    {selectedCurrentCycle.cycleLabel}
+                  </p>
+                  <div className="space-y-1.5">
+                    <DottedLeaderRow
+                      left={<span>New spending</span>}
+                      right={
+                        <span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>
+                          {fmtDollars(selectedCurrentCycle.currentSpending)}
+                        </span>
+                      }
+                    />
+                    <DottedLeaderRow
+                      left={<span>Reserved payment funds</span>}
+                      right={
+                        <span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>
+                          {fmtDollars(selectedCurrentCycle.reservedPaymentFunds)}
+                        </span>
+                      }
+                    />
+                    <DottedLeaderRow
+                      left={<span>Payment due</span>}
+                      right={
+                        selectedCurrentCycle.dueDateLabel != null &&
+                        selectedCurrentCycle.dueDateLabel.trim() !== "" ? (
+                          <span className={`font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>
+                            {fmtCreditDueDisplay(selectedCurrentCycle.dueDateLabel)}
+                          </span>
+                        ) : (
+                          <span className="text-[13px] font-medium text-slate-500">—</span>
+                        )
+                      }
+                    />
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    While the statement is open, the bank may not show a payment due date yet. It often appears after
+                    the statement closes; you can still reserve funds toward the upcoming payment.
+                  </p>
                 </div>
               </section>
             </>
