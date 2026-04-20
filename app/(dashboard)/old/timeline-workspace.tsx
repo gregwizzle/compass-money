@@ -1,15 +1,22 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import {
+  CalendarIcon,
+  Check,
   ChevronDown,
   ChevronUp,
   ChevronsDown,
   ChevronsUp,
-  CircleDollarSign,
+  ChevronsUpDown,
+  CirclePlus,
+  List,
   Lock,
+  Maximize2,
   Wallet,
+  X,
 } from "lucide-react"
 import { MonthStrip, useMonthSelection } from "@/components/month-strip"
 import { CATEGORY_GLYPH, RoadmapCategoriesGrid } from "@/components/roadmap-categories-grid"
@@ -18,7 +25,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
-import { CalendarIcon, Check, ChevronsUpDown } from "lucide-react"
 import {
   Command,
   CommandEmpty,
@@ -42,12 +48,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
 import type { TimelineCategory } from "@/lib/timeline-roadmap-data"
 import { MOCK_EXPECTED_INCOME, MOCK_TIMELINE_CATEGORIES } from "@/lib/timeline-roadmap-data"
 import { cn } from "@/lib/utils"
 import { amountInter, myJourneyNav } from "@/lib/fonts"
 import {
   DEFAULT_BUDGET_YEAR,
+  formatMonthAbbrevDisplay,
   getMonthStripFlags,
   MONTH_LABELS,
   monthIndexFromLabel,
@@ -120,7 +128,7 @@ function renderCategoryGlyph(
   }
   if (flow === "Income") {
     return (
-      <CircleDollarSign
+      <CirclePlus
         className={cn("h-4 w-4 shrink-0 stroke-[1.5]", "text-emerald-600", glyphClass)}
         aria-hidden
       />
@@ -133,6 +141,33 @@ function renderCategoryGlyph(
       aria-hidden
     />
   )
+}
+
+/** Matches cards row `px-4` (1rem) — horizontal buffer inside the main column. */
+const FULL_MONTH_OVERLAY_INSET_PX = 16
+
+function getFullMonthOverlayRect(cardsEl: HTMLElement): {
+  top: number
+  left: number
+  rightInset: number
+} {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 0
+  const b = FULL_MONTH_OVERLAY_INSET_PX
+  const r = cardsEl.getBoundingClientRect()
+  const main = document.getElementById("dashboard-main-pane")
+  if (!main) {
+    return {
+      top: r.top,
+      left: r.left + b,
+      rightInset: Math.max(0, vw - (r.right - b)),
+    }
+  }
+  const m = main.getBoundingClientRect()
+  return {
+    top: r.top,
+    left: m.left + b,
+    rightInset: Math.max(0, vw - (m.right - b)),
+  }
 }
 
 /**
@@ -179,6 +214,16 @@ export function TimelineWorkspace({
   const [isCategoryComboboxOpen, setIsCategoryComboboxOpen] = useState(false)
   const [showAllActivityRows, setShowAllActivityRows] = useState(false)
   const [isSettleUpOpen, setIsSettleUpOpen] = useState(false)
+  const [fullMonthActivityOpen, setFullMonthActivityOpen] = useState(false)
+  const [fullMonthActivityAnchor, setFullMonthActivityAnchor] = useState<{
+    top: number
+    left: number
+    rightInset: number
+  } | null>(null)
+  const timelinePageCardsRef = useRef<HTMLDivElement>(null)
+  const [fullActivityAccountFilter, setFullActivityAccountFilter] = useState<string>("all")
+  const [fullActivityCategoryFilter, setFullActivityCategoryFilter] = useState<string>("all")
+  const [fullActivitySearch, setFullActivitySearch] = useState("")
   const [manualActivityRows, setManualActivityRows] = useState<ActivityRow[]>([])
   
   // In a real app, this would check if today's date is past the end of the selected month
@@ -322,6 +367,75 @@ export function TimelineWorkspace({
     isEditingIncome,
     manualActivityRows,
     selectedMonth,
+  ])
+
+  /** Calendar month ∪ rows assigned to this budget month (overrides included). */
+  const fullMonthActivityRows = useMemo(() => {
+    return activityRows.filter((row) => {
+      const assigned =
+        activityBudgetMonthOverrides[row.id] ?? row.budgetMonthLabel ?? selectedMonth
+      if (assigned === selectedMonth) return true
+      const dStr = row.postedDateLabel ?? row.dateLabel
+      if (!dStr || dStr === "—") return false
+      const d = new Date(`${dStr}, ${DEFAULT_BUDGET_YEAR}`)
+      if (Number.isNaN(d.getTime())) return false
+      const mIdx = monthIndexFromLabel(selectedMonth)
+      return mIdx != null && d.getMonth() === mIdx
+    })
+  }, [activityRows, activityBudgetMonthOverrides, selectedMonth])
+
+  const fullActivityCategoryOptions = useMemo(() => {
+    const set = new Set<string>(["Income", "Transfer"])
+    for (const c of categories) {
+      set.add(c.name)
+    }
+    for (const row of fullMonthActivityRows) {
+      set.add(activityCategoryOverrides[row.id] ?? row.category)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [categories, fullMonthActivityRows, activityCategoryOverrides])
+
+  const fullActivityAccountOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const row of fullMonthActivityRows) {
+      if (row.accountLabel) set.add(row.accountLabel)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [fullMonthActivityRows])
+
+  const filteredFullMonthActivityRows = useMemo(() => {
+    let rows = fullMonthActivityRows
+    if (fullActivityAccountFilter !== "all") {
+      rows = rows.filter((r) => r.accountLabel === fullActivityAccountFilter)
+    }
+    if (fullActivityCategoryFilter !== "all") {
+      rows = rows.filter(
+        (r) =>
+          (activityCategoryOverrides[r.id] ?? r.category) === fullActivityCategoryFilter,
+      )
+    }
+    const q = fullActivitySearch.trim().toLowerCase()
+    if (q) {
+      rows = rows.filter((r) => {
+        const cat = activityCategoryOverrides[r.id] ?? r.category
+        return (
+          r.source.toLowerCase().includes(q) ||
+          r.merchant.toLowerCase().includes(q) ||
+          cat.toLowerCase().includes(q) ||
+          r.accountLabel.toLowerCase().includes(q) ||
+          r.flow.toLowerCase().includes(q) ||
+          (r.postedDateLabel ?? "").toLowerCase().includes(q) ||
+          r.dateLabel.toLowerCase().includes(q)
+        )
+      })
+    }
+    return rows
+  }, [
+    fullMonthActivityRows,
+    fullActivityAccountFilter,
+    fullActivityCategoryFilter,
+    fullActivitySearch,
+    activityCategoryOverrides,
   ])
 
   const newManualActivityPlaceholder = useMemo(
@@ -477,7 +591,58 @@ export function TimelineWorkspace({
 
   useEffect(() => {
     setShowAllActivityRows(false)
+    setFullMonthActivityOpen(false)
   }, [selectedMonth])
+
+  useEffect(() => {
+    if (!fullMonthActivityOpen) {
+      setFullActivityAccountFilter("all")
+      setFullActivityCategoryFilter("all")
+      setFullActivitySearch("")
+    }
+  }, [fullMonthActivityOpen])
+
+  useEffect(() => {
+    if (!fullMonthActivityOpen) return
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setFullMonthActivityOpen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [fullMonthActivityOpen])
+
+  useEffect(() => {
+    if (!fullMonthActivityOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [fullMonthActivityOpen])
+
+  useLayoutEffect(() => {
+    if (!fullMonthActivityOpen) {
+      setFullMonthActivityAnchor(null)
+      return
+    }
+    const el = timelinePageCardsRef.current
+    if (!el) return
+    const main = document.getElementById("dashboard-main-pane")
+    const update = () => {
+      setFullMonthActivityAnchor(getFullMonthOverlayRect(el))
+    }
+    update()
+    const roCards = new ResizeObserver(update)
+    roCards.observe(el)
+    const roMain = main ? new ResizeObserver(update) : null
+    if (main && roMain) roMain.observe(main)
+    window.addEventListener("resize", update)
+    return () => {
+      roCards.disconnect()
+      roMain?.disconnect()
+      window.removeEventListener("resize", update)
+    }
+  }, [fullMonthActivityOpen])
 
   const startBudgetEdit = () => {
     if (isEditingIncome) {
@@ -734,6 +899,15 @@ export function TimelineWorkspace({
     }
   }
 
+  const openFullMonthActivity = () => {
+    closeActivityDetails(false)
+    const el = timelinePageCardsRef.current
+    if (el) {
+      setFullMonthActivityAnchor(getFullMonthOverlayRect(el))
+    }
+    setFullMonthActivityOpen(true)
+  }
+
   const saveActivityDetails = () => {
     if (!selectedActivity || !activityCategoryDraft.trim() || !activityBudgetMonthDraft) return
 
@@ -796,7 +970,7 @@ export function TimelineWorkspace({
     }
     if (!selectedActivity) return
     setActivityCategoryDraft(selectedActivityCategory)
-    setActivityBudgetMonthDraft(selectedActivityBudgetMonth)
+    setActivityBudgetMonthDraft(selectedActivityBudgetMonth as MonthLabel)
     setActivityDateDraft(selectedActivity.dateLabel)
     setActivitySourceDraft(selectedActivity.source)
     setActivityAccountDraft(selectedActivity.accountLabel)
@@ -817,7 +991,7 @@ export function TimelineWorkspace({
           </Link>
         </div>
       ) : null}
-      {(isEditingBudgets || isEditingIncome || !!selectedActivity) && (
+      {(isEditingBudgets || isEditingIncome || !!selectedActivity) && !fullMonthActivityOpen && (
         <div className="pointer-events-none fixed inset-0 z-10 bg-slate-900/20" />
       )}
       <div className={monthStripWrapClass}>
@@ -828,7 +1002,15 @@ export function TimelineWorkspace({
         />
       </div>
 
-      <div className={`flex min-w-0 flex-col ${layoutGapClass} px-4 pb-4 pt-2 lg:flex-row lg:items-start`}>
+      <div
+        ref={timelinePageCardsRef}
+        className={cn(
+          `flex min-w-0 flex-col ${layoutGapClass} px-4 pb-4 pt-2 lg:flex-row lg:items-start`,
+          fullMonthActivityOpen &&
+            "pointer-events-none invisible select-none opacity-0",
+        )}
+        aria-hidden={fullMonthActivityOpen}
+      >
         <div className="relative flex w-full min-w-0 max-w-[min(100%,40rem)] shrink-0 flex-col gap-4 lg:max-w-[min(100%,50%)]">
         <div className="relative">
         <section
@@ -1051,6 +1233,7 @@ export function TimelineWorkspace({
         </div>
         <TimelineIncomeTankCard
           items={isEditingIncome ? incomeEditDraft : incomeItems}
+          selectedMonth={selectedMonth}
           editMode={isEditingIncome}
           muted={isEditingBudgets || !!selectedActivity}
           elevated={isEditingIncome}
@@ -1112,25 +1295,50 @@ export function TimelineWorkspace({
           aria-labelledby="timeline-activity-heading"
         >
           <header className={cardHeaderClass}>
-            <div className="relative z-20 flex min-w-0 items-center">
+            <div className="relative z-20 flex min-w-0 items-center gap-2">
               <h2
                 id="timeline-activity-heading"
-                className={cardTitleClass}
+                className={cn(
+                  cardTitleClass,
+                  !selectedActivity && "flex min-w-0 flex-1 items-center gap-2",
+                )}
               >
-                {selectedActivity
-                  ? isNewManualActivity
-                    ? "Add transaction"
-                    : "Transaction Details"
-                  : "March Activity"}
+                {selectedActivity ? (
+                  isNewManualActivity ? (
+                    "Add transaction"
+                  ) : (
+                    "Transaction Details"
+                  )
+                ) : (
+                  <>
+                    <List
+                      className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]"
+                      aria-hidden
+                    />
+                    <span className="min-w-0 truncate">Recent Activity</span>
+                  </>
+                )}
               </h2>
               {!selectedActivity ? (
-                <button
-                  type="button"
-                  onClick={openAddManualActivity}
-                  className={cardEditBtnClass}
-                >
-                  + Add
-                </button>
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openFullMonthActivity}
+                    className="inline-flex max-w-[min(100%,14rem)] cursor-pointer items-center gap-1 text-right text-[10px] font-semibold leading-snug text-[#0087D2] underline-offset-2 hover:underline sm:max-w-none"
+                  >
+                    <span className="leading-snug">
+                      Full {monthLongNameFromLabel(selectedMonth)} Activity
+                    </span>
+                    <Maximize2 className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openAddManualActivity}
+                    className={cardEditBtnClass}
+                  >
+                    + Add
+                  </button>
+                </div>
               ) : null}
               {selectedActivity ? (
                 <>
@@ -1553,13 +1761,13 @@ export function TimelineWorkspace({
                         row.flow === "Income" ? "text-emerald-700" : "text-slate-500"
                       }`}
                     >
-                      <span className="inline-flex flex-col leading-tight">
+                      <span className="inline-flex flex-wrap items-center gap-1.5 leading-tight">
                         <span>{row.dateLabel}</span>
                         {row.postedDateLabel &&
                         row.budgetMonthLabel &&
                         row.postedDateLabel.slice(0, 3) !== row.budgetMonthLabel.slice(0, 3) ? (
-                          <span className="text-[9px] font-medium text-slate-400">
-                            Applied to {row.budgetMonthLabel.slice(0, 3)}
+                          <span className="rounded border border-slate-200 bg-slate-50 px-1 py-px text-[9px] font-semibold tabular-nums text-slate-500">
+                            {formatMonthAbbrevDisplay(row.budgetMonthLabel)}
                           </span>
                         ) : null}
                       </span>
@@ -1638,6 +1846,311 @@ export function TimelineWorkspace({
           </div>
         </section>
       </div>
+
+      {fullMonthActivityOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[200]">
+              <div className="absolute inset-0 bg-black/45" aria-hidden />
+              {fullMonthActivityAnchor ? (
+              <div
+                className="fixed z-[1] box-border flex min-w-0 flex-col overflow-y-auto overflow-x-hidden overscroll-contain"
+                style={{
+                  top: fullMonthActivityAnchor.top,
+                  left: fullMonthActivityAnchor.left,
+                  right: fullMonthActivityAnchor.rightInset,
+                  bottom: FULL_MONTH_OVERLAY_INSET_PX,
+                }}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="full-month-activity-title"
+                  className="flex w-full min-w-0 flex-col"
+                >
+                  <div
+                    className={cn(
+                      "flex flex-col overflow-hidden rounded-sm",
+                      cardShellClass,
+                    )}
+                  >
+            <header
+              className={cn(cardHeaderClass, "shrink-0 rounded-t-sm px-3 sm:px-4")}
+            >
+              <div className="relative flex min-w-0 items-center pr-10">
+                <h2 id="full-month-activity-title" className={cardTitleClass}>
+                  {monthLongNameFromLabel(selectedMonth)} Activity
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setFullMonthActivityOpen(false)}
+                  className={cn(
+                    "absolute right-0 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-sm transition-colors",
+                    isLabSoftSlate || isSample
+                      ? "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                      : "border border-white/30 bg-white/10 text-white hover:bg-white/20",
+                  )}
+                  aria-label="Close full month activity"
+                  title="Close"
+                >
+                  <X className="h-4 w-4 stroke-[2.5]" aria-hidden />
+                </button>
+              </div>
+            </header>
+
+            <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-3 sm:px-4">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="flex min-w-0 flex-col gap-1">
+                <label
+                  htmlFor="full-activity-account"
+                  className="text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+                >
+                  Account
+                </label>
+                <Select
+                  value={fullActivityAccountFilter}
+                  onValueChange={setFullActivityAccountFilter}
+                >
+                  <SelectTrigger
+                    id="full-activity-account"
+                    className="h-8 w-full min-w-[10rem] text-[12px] sm:w-[11rem]"
+                  >
+                    <SelectValue placeholder="All accounts" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[300]">
+                    <SelectItem value="all">All accounts</SelectItem>
+                    {fullActivityAccountOptions.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <label
+                  htmlFor="full-activity-category"
+                  className="text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+                >
+                  Category (living funds)
+                </label>
+                <Select
+                  value={fullActivityCategoryFilter}
+                  onValueChange={setFullActivityCategoryFilter}
+                >
+                  <SelectTrigger
+                    id="full-activity-category"
+                    className="h-8 w-full min-w-[10rem] text-[12px] sm:w-[13rem]"
+                  >
+                    <SelectValue placeholder="All categories" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[300]">
+                    <SelectItem value="all">All categories</SelectItem>
+                    {fullActivityCategoryOptions.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex min-w-0 flex-col gap-1">
+                <label
+                  htmlFor="full-activity-search"
+                  className="text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+                >
+                  Search
+                </label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input
+                    id="full-activity-search"
+                    value={fullActivitySearch}
+                    onChange={(e) => setFullActivitySearch(e.target.value)}
+                    placeholder="Description, merchant…"
+                    className="h-7 max-w-[10rem] min-w-0 px-2 py-1 text-[11px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFullActivityAccountFilter("all")
+                      setFullActivityCategoryFilter("all")
+                      setFullActivitySearch("")
+                    }}
+                    disabled={
+                      fullActivityAccountFilter === "all" &&
+                      fullActivityCategoryFilter === "all" &&
+                      fullActivitySearch.trim() === ""
+                    }
+                    className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-[#0087D2] underline-offset-2 hover:underline disabled:pointer-events-none disabled:text-slate-300"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+            </div>
+
+                <div className="flex w-full min-w-0 max-w-full flex-col bg-white">
+                  <div className="w-full min-w-0 max-w-full overflow-x-auto px-3 sm:px-4">
+                <Table className="min-w-[64rem] max-w-full text-[11px]">
+                <TableHeader>
+                  <TableRow className="border-slate-200 hover:bg-transparent">
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Date
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Posted
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Timeline
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Transaction
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Merchant
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Category
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Account
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Source
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-right text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Planned
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-right text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Actual
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Status
+                    </TableHead>
+                    <TableHead className="h-8 whitespace-nowrap px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                      Transfer to
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredFullMonthActivityRows.map((row) => {
+                    const displayCategory = activityCategoryOverrides[row.id] ?? row.category
+                    const budgetMonth =
+                      activityBudgetMonthOverrides[row.id] ?? row.budgetMonthLabel ?? selectedMonth
+                    return (
+                      <TableRow
+                        key={row.id}
+                        className="group cursor-pointer border-slate-100 transition-colors hover:bg-sky-50/90 hover:shadow-[inset_0_0_0_1px_rgba(2,132,199,0.22)]"
+                        tabIndex={0}
+                        role="button"
+                        onClick={() => {
+                          setFullMonthActivityOpen(false)
+                          openActivityDetails(row)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            setFullMonthActivityOpen(false)
+                            openActivityDetails(row)
+                          }
+                        }}
+                      >
+                        <TableCell
+                          className={`whitespace-nowrap px-2 py-1.5 text-[11px] tabular-nums ${
+                            row.flow === "Income" ? "text-emerald-700" : "text-slate-500"
+                          }`}
+                        >
+                          <span className="inline-flex flex-wrap items-center gap-1.5 leading-tight">
+                            <span>{row.dateLabel}</span>
+                            {row.postedDateLabel &&
+                            budgetMonth &&
+                            row.postedDateLabel.slice(0, 3) !== budgetMonth.slice(0, 3) ? (
+                              <span className="rounded border border-slate-200 bg-slate-50 px-1 py-px text-[9px] font-semibold tabular-nums text-slate-500">
+                                {formatMonthAbbrevDisplay(budgetMonth)}
+                              </span>
+                            ) : null}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-1.5 text-[11px] tabular-nums text-slate-600">
+                          {row.postedDateLabel ?? "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-1.5 text-[11px] text-slate-700">
+                          {monthLongNameFromLabel(budgetMonth)}
+                        </TableCell>
+                        <TableCell
+                          className={`max-w-[14rem] truncate px-2 py-1.5 text-[11px] ${
+                            row.flow === "Income" ? "text-emerald-700" : "text-slate-700"
+                          }`}
+                        >
+                          {row.source}
+                        </TableCell>
+                        <TableCell className="max-w-[12rem] truncate px-2 py-1.5 text-[11px] text-slate-600">
+                          {row.merchant}
+                        </TableCell>
+                        <TableCell
+                          className={`max-w-[10rem] truncate px-2 py-1.5 text-[11px] ${
+                            row.flow === "Income" ? "text-emerald-700" : "text-slate-500"
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            {renderCategoryGlyph(displayCategory, row.flow, activeCategories)}
+                            <span className="truncate">{displayCategory}</span>
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-[10rem] truncate px-2 py-1.5 text-[11px] text-slate-700">
+                          {row.accountLabel}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-1.5 text-[11px] text-slate-600">
+                          {row.sourceType === "bank_import" ? "Imported" : "Manual"}
+                        </TableCell>
+                        <TableCell
+                          className={`whitespace-nowrap px-2 py-1.5 text-right text-[11px] tabular-nums ${amountInter.className} text-slate-700`}
+                        >
+                          {fmtAmount(row.planned)}
+                        </TableCell>
+                        <TableCell
+                          className={`whitespace-nowrap px-2 py-1.5 text-right text-[11px] tabular-nums ${amountInter.className} ${
+                            row.flow === "Income"
+                              ? "text-emerald-700"
+                              : row.flow === "Transfer"
+                                ? "text-slate-500"
+                                : "text-slate-700"
+                          }`}
+                        >
+                          {row.flow === "Income" ? "+" : row.flow === "Transfer" ? "" : "-"}
+                          {fmtAmount(row.actual)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap px-2 py-1.5 text-[11px] text-slate-600">
+                          {row.status === "Processing" ? "Pending" : row.status}
+                        </TableCell>
+                        <TableCell className="max-w-[10rem] truncate px-2 py-1.5 text-[11px] text-slate-600">
+                          {row.flow === "Transfer" ? row.transferToAccountLabel ?? "Linked Account" : "—"}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+                </Table>
+                  </div>
+                  <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-2.5 sm:px-4">
+                    <p className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      {filteredFullMonthActivityRows.length} transaction
+                      {filteredFullMonthActivityRows.length === 1 ? "" : "s"}
+                      {fullMonthActivityRows.length !== filteredFullMonthActivityRows.length
+                        ? ` (filtered from ${fullMonthActivityRows.length})`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+              ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
+
       <SettleUpModal 
         isOpen={isSettleUpOpen} 
         onOpenChange={setIsSettleUpOpen} 
@@ -1649,7 +2162,6 @@ export function TimelineWorkspace({
         currentStashAmount={2450} // In a real app this would come from the global stash state
         isReadyToCashOut={isReadyToCashOut}
       />
-      <div className="h-16 shrink-0" aria-hidden />
     </div>
   )
 }

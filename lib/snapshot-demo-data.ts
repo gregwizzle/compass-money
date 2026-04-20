@@ -6,6 +6,7 @@
 import type { ExpectedIncomeLine } from "@/lib/timeline-roadmap-data"
 import type { TimelineCategory } from "@/lib/timeline-roadmap-data"
 import { MOCK_EXPECTED_INCOME } from "@/lib/timeline-roadmap-data"
+import type { MonthLabel } from "@/lib/budget-month"
 
 /** Demo “today” is this day-of-month for paid vs upcoming bills. */
 export const SNAPSHOT_AS_OF_DAY = 14
@@ -82,6 +83,29 @@ export function partitionBillsByPaid(asOfDay: number) {
   return { paid, upcoming, paidTotal }
 }
 
+/** Net sum of (target − spent) across living envelopes; negative means slush is overdrawn overall. */
+export function getSnapshotLivingNetRemaining() {
+  return SNAPSHOT_LIVING.reduce((s, l) => s + (l.target - l.spent), 0)
+}
+
+/** Living envelopes where spent exceeds target (for Expected Cashout breakdown). */
+export type SnapshotLivingOverageLine = {
+  id: string
+  /** Full envelope name (e.g. “Health & Wellness”). */
+  label: string
+  /** Dollars over target for this envelope. */
+  overage: number
+}
+
+/** One row per living envelope with overage; empty if none. */
+export function getSnapshotLivingOverageLines(): SnapshotLivingOverageLine[] {
+  return SNAPSHOT_LIVING.filter((l) => l.spent > l.target).map((l) => ({
+    id: l.id,
+    label: l.name,
+    overage: l.spent - l.target,
+  }))
+}
+
 /** Timeline-style: starting − full plan − overage in living envelopes. */
 export function getSnapshotExpectedCashout() {
   const billsTotal = SNAPSHOT_BILLS.reduce((s, b) => s + b.amount, 0)
@@ -117,20 +141,159 @@ export type SnapshotActivityRow = {
   category: string
   flow: "Income" | "Expense" | "Transfer"
   actual: number
+  /** Budget month for this transaction (separate from calendar date on `dateLabel`). */
+  budgetMonthLabel: MonthLabel
+  /** When true, funded from My Stash instead of the monthly budget. */
+  fromStash: boolean
+  /** Bill, living envelope, income line, or transfer target. */
+  appliedToKey: string
+  accountLabel?: string
 }
 
 /** Read-only ledger preview for snapshot. */
 export const SNAPSHOT_ACTIVITY_ROWS: SnapshotActivityRow[] = [
-  { id: "a1", dateLabel: "Mar 12", source: "Electric", category: "Bills", flow: "Expense", actual: 120 },
-  { id: "a2", dateLabel: "Mar 10", source: "Internet", category: "Bills", flow: "Expense", actual: 75 },
-  { id: "a3", dateLabel: "Mar 5", source: "Auto Insurance", category: "Bills", flow: "Expense", actual: 138 },
-  { id: "a4", dateLabel: "Mar 1", source: "Rent or Mortgage", category: "Bills", flow: "Expense", actual: 1650 },
-  { id: "a5", dateLabel: "Mar 14", source: "Whole Foods", category: "Groceries", flow: "Expense", actual: 84 },
-  { id: "a6", dateLabel: "Mar 13", source: "Shell", category: "Gas & Transit", flow: "Expense", actual: 42 },
-  { id: "a7", dateLabel: "Mar 11", source: "Local Cafe", category: "Dining Out & Coffee", flow: "Expense", actual: 18 },
-  { id: "a8", dateLabel: "Mar 10", source: "Pharmacy", category: "Health & Wellness", flow: "Expense", actual: 24 },
-  { id: "a9", dateLabel: "Mar 9", source: "Concert tickets", category: "My Vibe", flow: "Expense", actual: 120 },
-  { id: "a10", dateLabel: "Mar 8", source: "Kroger", category: "Groceries", flow: "Expense", actual: 112 },
-  { id: "a11", dateLabel: "Mar 6", source: "Transit pass", category: "Gas & Transit", flow: "Expense", actual: 45 },
-  { id: "a12", dateLabel: "Mar 4", source: "Pizza night", category: "Dining Out & Coffee", flow: "Expense", actual: 38 },
+  {
+    id: "a1",
+    dateLabel: "Mar 12",
+    source: "Electric",
+    category: "Bills",
+    flow: "Expense",
+    actual: 120,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "bill:electric",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a2",
+    dateLabel: "Mar 10",
+    source: "Internet",
+    category: "Bills",
+    flow: "Expense",
+    actual: 75,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "bill:internet",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a3",
+    dateLabel: "Mar 5",
+    source: "Auto Insurance",
+    category: "Bills",
+    flow: "Expense",
+    actual: 138,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "bill:auto-ins",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a4",
+    dateLabel: "Mar 1",
+    source: "Rent or Mortgage",
+    category: "Bills",
+    flow: "Expense",
+    actual: 1650,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "bill:rent",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a5",
+    dateLabel: "Mar 14",
+    source: "Whole Foods",
+    category: "Groceries",
+    flow: "Expense",
+    actual: 84,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:groceries",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a6",
+    dateLabel: "Mar 13",
+    source: "Shell",
+    category: "Gas & Transit",
+    flow: "Expense",
+    actual: 42,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:gas",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a7",
+    dateLabel: "Mar 11",
+    source: "Local Cafe",
+    category: "Dining Out & Coffee",
+    flow: "Expense",
+    actual: 18,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:dining",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a8",
+    dateLabel: "Mar 10",
+    source: "Pharmacy",
+    category: "Health & Wellness",
+    flow: "Expense",
+    actual: 24,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:personal",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a9",
+    dateLabel: "Mar 9",
+    source: "Concert tickets",
+    category: "My Vibe",
+    flow: "Expense",
+    actual: 120,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:vibe",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a10",
+    dateLabel: "Mar 8",
+    source: "Kroger",
+    category: "Groceries",
+    flow: "Expense",
+    actual: 112,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:groceries",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a11",
+    dateLabel: "Mar 6",
+    source: "Transit pass",
+    category: "Gas & Transit",
+    flow: "Expense",
+    actual: 45,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:gas",
+    accountLabel: "Linked Checking",
+  },
+  {
+    id: "a12",
+    dateLabel: "Mar 4",
+    source: "Pizza night",
+    category: "Dining Out & Coffee",
+    flow: "Expense",
+    actual: 38,
+    budgetMonthLabel: "Mar",
+    fromStash: false,
+    appliedToKey: "living:dining",
+    accountLabel: "Linked Checking",
+  },
 ]

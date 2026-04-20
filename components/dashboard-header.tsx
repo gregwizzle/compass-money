@@ -1,14 +1,15 @@
 "use client"
 
 import { Suspense } from "react"
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, Landmark, Receipt, type LucideIcon } from "lucide-react"
 import { usePathname } from "next/navigation"
+import { CATEGORY_GLYPH } from "@/components/roadmap-categories-grid"
 import { HeaderYearControl } from "@/components/header-year-control"
 import { amountInter, myJourneyNav } from "@/lib/fonts"
 import { resolveDashboardRoute } from "@/lib/dashboard-nav"
 import { cn } from "@/lib/utils"
 
-/** Single grey rule between Stash / Owe / Savings — spans full cell height. */
+/** Single grey rule between metric cells — spans full cell height. */
 function MetricsDivider() {
   return (
     <span
@@ -18,7 +19,19 @@ function MetricsDivider() {
   )
 }
 
-function MetricsStrip() {
+function MetricsCell({
+  label,
+  value,
+  valueClass,
+  icon: Icon,
+  iconClassName,
+}: {
+  label: string
+  value: number
+  valueClass: string
+  icon?: LucideIcon
+  iconClassName?: string
+}) {
   const fmtCurrency = (n: number) => {
     const sign = n < 0 ? "-" : ""
     const abs = Math.abs(n).toLocaleString()
@@ -30,13 +43,15 @@ function MetricsStrip() {
     )
   }
 
-  const cell = (
-    label: string,
-    value: number,
-    valueClass: string,
-  ) => (
+  return (
     <div className="flex flex-col items-end gap-[2px] px-1.5 py-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        {Icon ? (
+          <Icon
+            className={cn("h-3 w-3 shrink-0 stroke-[1.5]", iconClassName ?? "text-slate-400")}
+            aria-hidden
+          />
+        ) : null}
         {label}
       </span>
       <span
@@ -46,17 +61,40 @@ function MetricsStrip() {
       </span>
     </div>
   )
+}
+
+function MetricsStrip() {
+  const { Icon: OweIcon } = CATEGORY_GLYPH.subscriptions
+  const metricIconGrey = "text-slate-500"
 
   return (
     <div
       className="inline-flex items-stretch gap-2"
       aria-label="Balances overview"
     >
-      {cell("Stash", 4200, "text-slate-600")}
+      <MetricsCell
+        label="Stash"
+        value={4200}
+        valueClass="text-slate-600"
+        icon={Receipt}
+        iconClassName={metricIconGrey}
+      />
       <MetricsDivider />
-      {cell("Owe", 1850, "text-[#C07A6E]")}
+      <MetricsCell
+        label="Owe"
+        value={1850}
+        valueClass="text-[#C07A6E]"
+        icon={OweIcon}
+        iconClassName={metricIconGrey}
+      />
       <MetricsDivider />
-      {cell("Savings", 12500, "text-emerald-600")}
+      <MetricsCell
+        label="Savings"
+        value={12500}
+        valueClass="text-emerald-600"
+        icon={Landmark}
+        iconClassName={metricIconGrey}
+      />
     </div>
   )
 }
@@ -73,13 +111,13 @@ export function DashboardHeader() {
         <h1
           className={cn(
             "flex min-w-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em]",
-            isMyJourney ? "text-orange-900" : "text-slate-600",
+            isMyJourney ? "text-orange-700/90" : "text-slate-600",
           )}
         >
           <PageIcon
             className={cn(
               "shrink-0 stroke-[1.5]",
-              isMyJourney ? "h-8 w-8 text-current" : "h-7 w-7 text-[#0087D2]",
+              isMyJourney ? "h-8 w-8 text-orange-700/90" : "h-7 w-7 text-[#0087D2]",
             )}
             aria-hidden
           />

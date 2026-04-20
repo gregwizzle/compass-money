@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { CompassRoseLogo } from "@/components/compass-rose-logo"
 import { compassWordmark, myJourneyNav } from "@/lib/fonts"
 import {
+  dashboardBetaFooterNav,
   dashboardPrimaryNav,
   dashboardReferNav,
   dashboardSecondaryNav,
@@ -85,8 +86,8 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
                     "flex w-full items-center justify-between gap-2 rounded-r-lg py-2.5 pl-3 pr-2 text-sm font-medium transition-[background-color,color] duration-200",
                     isMyJourney
                       ? isActive
-                        ? "bg-orange-100/90 font-semibold text-orange-900"
-                        : "text-orange-700/90 hover:bg-orange-100/70 hover:text-orange-900"
+                        ? "bg-orange-100/90 font-semibold text-orange-700/90"
+                        : "text-orange-700/90 hover:bg-orange-100/70"
                       : isActive
                         ? "bg-[#0087D2]/10 font-semibold text-[#0087D2]"
                         : "text-stone-500 hover:bg-stone-200/60 hover:text-slate-700",
@@ -96,12 +97,8 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
                     <item.icon
                       className={cn(
                         "shrink-0 stroke-[1.5]",
-                        isMyJourney ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4",
-                        isMyJourney
-                          ? "text-current"
-                          : isActive
-                            ? "text-[#0087D2]"
-                            : "",
+                        isMyJourney ? "h-[1.125rem] w-[1.125rem] text-orange-700/90" : "h-4 w-4",
+                        !isMyJourney && isActive ? "text-[#0087D2]" : "",
                       )}
                     />
                     <span
@@ -119,7 +116,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
                     <ChevronRight
                       className={cn(
                         "pointer-events-none h-3.5 w-3.5 shrink-0 stroke-[1.75]",
-                        isMyJourney ? "text-current" : "text-[#004a73]",
+                        isMyJourney ? "text-orange-700/90" : "text-[#004a73]",
                       )}
                       aria-hidden
                     />
@@ -138,7 +135,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
                 "flex w-full items-center justify-between gap-2 rounded-md border border-slate-200/90 bg-white/70 px-2.5 py-2 text-left shadow-sm transition-[background-color,border-color,box-shadow] duration-200",
                 pathname === "/refer" || pathname.startsWith("/refer/")
                   ? "border-[#0087D2]/35 bg-[#0087D2]/5 ring-1 ring-[#0087D2]/20"
-                  : "hover:border-orange-200/90 hover:bg-orange-50/90 hover:shadow",
+                  : "hover:border-teal-200/90 hover:bg-teal-50/80 hover:shadow",
               )}
               aria-label="Refer a friend — share your link and earn rewards"
             >
@@ -148,7 +145,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
                     "h-3.5 w-3.5 shrink-0 stroke-[1.5]",
                     pathname === "/refer" || pathname.startsWith("/refer/")
                       ? "text-[#0087D2]"
-                      : "text-orange-600/90",
+                      : "text-teal-600",
                   )}
                   aria-hidden
                 />
@@ -215,7 +212,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
               <li className="mt-2 border-t border-dashed border-stone-300/80 pt-2">
                 <button
                   type="button"
-                  className="group flex w-full items-center gap-2 rounded-md py-1.5 pl-2.5 pr-2 text-left text-[11px] font-normal text-stone-600 transition-[background-color,color] duration-200 hover:bg-rose-100 hover:text-rose-900"
+                  className="group flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pl-2.5 pr-2 text-left text-[11px] font-normal text-stone-600 transition-[background-color,color] duration-200 hover:bg-rose-100 hover:text-rose-900"
                 >
                   <LogOut className="h-3 w-3 shrink-0 stroke-[1.5] text-stone-500 transition-colors group-hover:text-rose-800" />
                   <span>Log out</span>
@@ -226,8 +223,38 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
         </div>
       </nav>
 
-      <div className="py-4" style={{ paddingLeft: "24px", paddingRight: "16px" }}>
+      <div className="mt-auto border-t border-stone-200/80 py-4 pl-6 pr-4">
         <div className="text-[10px] uppercase tracking-wider text-stone-400">v1.0 Beta</div>
+        <ul className="mt-2 flex flex-col gap-0.5">
+          {dashboardBetaFooterNav.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`)
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 rounded-md py-2 pl-2.5 pr-2 text-xs font-medium transition-[background-color,color] duration-200",
+                    isActive
+                      ? "bg-stone-200/80 text-slate-800"
+                      : "text-stone-600 hover:bg-stone-200/60 hover:text-slate-800",
+                  )}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <item.icon className="h-3.5 w-3.5 shrink-0 stroke-[1.5]" />
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  {isActive && (
+                    <ChevronRight
+                      className="pointer-events-none h-3.5 w-3.5 shrink-0 stroke-[1.75] text-[#004a73]"
+                      aria-hidden
+                    />
+                  )}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
       </div>
     </aside>
   )

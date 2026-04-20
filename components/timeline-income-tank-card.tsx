@@ -1,8 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type KeyboardEvent } from "react"
 import type { ExpectedIncomeLine } from "@/lib/timeline-roadmap-data"
-import { Check, Sprout } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { CirclePlus, Maximize2, RefreshCw, Sprout, Wallet } from "lucide-react"
+import { ReceivedCheckIcon } from "@/components/received-check-icon"
+import {
+  DEFAULT_BUDGET_YEAR,
+  type MonthLabel,
+  nextMonthLongNameFromLabel,
+} from "@/lib/budget-month"
+import { cn } from "@/lib/utils"
 import { amountInter, myJourneyNav } from "@/lib/fonts"
 
 function fmt(n: number) {
@@ -16,16 +29,68 @@ function fmt(n: number) {
   )
 }
 
+function fmtDollarsPlain(n: number) {
+  return `$${n.toLocaleString()}`
+}
+
+function parseIncomeDateParts(
+  expectedDate: string,
+  year: number,
+): { monthKey: string; day: string; monthAbbrev: string } | null {
+  const trimmed = expectedDate.trim()
+  if (!trimmed) return null
+  const d = new Date(`${trimmed}, ${year}`)
+  if (Number.isNaN(d.getTime())) return null
+  const monthKey = `${d.getFullYear()}-${d.getMonth()}`
+  const monthAbbrev = d.toLocaleString("en-US", { month: "short" })
+  const day = String(d.getDate())
+  return { monthKey, day, monthAbbrev }
+}
+
+/** First row of each month: "Apr 5"; later rows same month: day only. */
+function incomeDockDateLabel(
+  expectedDate: string,
+  prevExpectedDate: string | null,
+  year: number,
+): string {
+  const cur = parseIncomeDateParts(expectedDate, year)
+  if (!cur) return expectedDate.trim() || "—"
+  if (prevExpectedDate == null) {
+    return `${cur.monthAbbrev} ${cur.day}`
+  }
+  const prev = parseIncomeDateParts(prevExpectedDate, year)
+  if (!prev || cur.monthKey !== prev.monthKey) {
+    return `${cur.monthAbbrev} ${cur.day}`
+  }
+  return cur.day
+}
+
+/** Dot leader strip — must sit in a flex row with flex-1 basis-0 min-w-0 (see Scheduled Pay). */
+const incomeRowDotFill =
+  "min-h-[1em] min-w-0 flex-1 basis-0 bg-[radial-gradient(circle,_currentColor_0.85px,_transparent_1.2px)] bg-[length:6px_3px] bg-repeat-x bg-bottom text-slate-300"
+
+/** Hover-only highlight + thin sky inset edge (no default border — avoids persistent ring). */
+const scheduledPayRowHoverClass =
+  "transition-colors duration-150 hover:bg-sky-50/90 hover:shadow-[inset_0_0_0_1px_rgba(2,132,199,0.22)]"
+
+/** Same surface + hover as snapshot Credit Card Payments rows (`CREDIT_OUTPOST_ROW_BUTTON_CLASS`). */
+const otherIncomePanelClass =
+  "group min-w-0 w-full cursor-pointer rounded-lg border border-slate-200/80 border-l-slate-200 bg-gradient-to-b from-white to-slate-50/90 px-2 py-3 text-left shadow-sm transition-colors duration-150 hover:border-slate-300/90 hover:from-sky-50 hover:to-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0087D2] focus-visible:ring-offset-1 sm:px-3"
+
 type IncomeCardItem = ExpectedIncomeLine & {
   markedForDeletion?: boolean
 }
 
 type TimelineIncomeTankCardProps = {
   items: IncomeCardItem[]
+  /** Month strip selection — footer copy uses the following month (“getting ready for …”). */
+  selectedMonth: MonthLabel
   editMode?: boolean
   muted?: boolean
   elevated?: boolean
   headerTheme?: "default" | "sample" | "softSlate"
+  /** Shown under "Other Income" as $n. */
+  otherIncomeAmount?: number
   onStartEdit?: () => void
   onSaveEdit?: () => void
   onCancelEdit?: () => void
@@ -36,14 +101,16 @@ type TimelineIncomeTankCardProps = {
 }
 
 /**
- * Timeline Income Dock: expected income lines for April planning.
+ * Timeline Income Dock: expected income lines for the selected budget month.
  */
 export function TimelineIncomeTankCard({
   items,
+  selectedMonth,
   editMode = false,
   muted = false,
   elevated = false,
   headerTheme = "default",
+  otherIncomeAmount = 240,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
@@ -52,15 +119,18 @@ export function TimelineIncomeTankCard({
   onToggleDelete,
   onAddItem,
 }: TimelineIncomeTankCardProps) {
+  const nextMonthName = nextMonthLongNameFromLabel(selectedMonth)
   const sampleTheme = headerTheme === "sample"
   const softSlateTheme = headerTheme === "softSlate"
   const [showIncomeAddRow, setShowIncomeAddRow] = useState(false)
   const [newIncomeLabel, setNewIncomeLabel] = useState("")
   const [newIncomeDate, setNewIncomeDate] = useState("Mar --")
   const [newIncomeAmount, setNewIncomeAmount] = useState(0)
+  const [scheduledPayLine, setScheduledPayLine] = useState<IncomeCardItem | null>(null)
+  const [otherIncomeOpen, setOtherIncomeOpen] = useState(false)
 
   const dateToSortable = (value: string) => {
-    const d = new Date(`${value}, 2026`)
+    const d = new Date(`${value}, ${DEFAULT_BUDGET_YEAR}`)
     return Number.isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime()
   }
 
@@ -69,9 +139,8 @@ export function TimelineIncomeTankCard({
   )
 
   const visibleItems = sortedItems.filter((line) => !line.markedForDeletion)
-  const total = visibleItems.reduce((sum, line) => sum + line.amount, 0)
+  const targetIncomeTotal = visibleItems.reduce((sum, line) => sum + line.amount, 0)
   const received = visibleItems.reduce((sum, line) => sum + (line.cleared ? line.amount : 0), 0)
-  const fillPct = total > 0 ? Math.min(100, (received / total) * 100) : 0
   const headerClass = sampleTheme
     ? "shrink-0 border-b border-[#D7C7B7] bg-[#E9DED2] px-3 py-2.5"
     : softSlateTheme
@@ -93,7 +162,7 @@ export function TimelineIncomeTankCard({
 
   return (
     <section
-      className={`relative flex w-full min-w-0 flex-col overflow-hidden rounded-sm border bg-white shadow-sm transition-opacity ${
+      className={`relative flex w-full min-w-0 flex-col overflow-x-clip rounded-sm border bg-white shadow-sm transition-opacity ${
         editMode
           ? "border-[#0087D2]/55 ring-1 ring-[#0087D2]/25"
           : sampleTheme
@@ -110,9 +179,13 @@ export function TimelineIncomeTankCard({
         <div className="relative z-20 flex min-w-0 items-center">
           <h2
             id="timeline-income-dock-heading"
-            className={titleClass}
+            className={cn(titleClass, "flex min-w-0 flex-1 items-center gap-2")}
           >
-            Income Dock
+            <CirclePlus
+              className="h-4 w-4 shrink-0 stroke-[1.75] text-emerald-600"
+              aria-hidden
+            />
+            <span className="min-w-0 truncate">Income Dock</span>
           </h2>
           {editMode ? (
             <span className="ml-auto mr-8 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -122,16 +195,17 @@ export function TimelineIncomeTankCard({
             <button
               type="button"
               onClick={onStartEdit}
-              className={editBtnClass}
+              className={cn(editBtnClass, "normal-case")}
             >
-              Edit
+              Full Income Plan
+              <Maximize2 className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
             </button>
           )}
           {editMode && (
             <button
               type="button"
               onClick={onCancelEdit}
-              className="absolute right-0 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-sm bg-rose-600/95 text-white transition-colors hover:bg-rose-700"
+              className="absolute right-0 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm bg-rose-600/95 text-white transition-colors hover:bg-rose-700"
               aria-label="Cancel Income Dock editing"
               title="Cancel"
             >
@@ -142,102 +216,242 @@ export function TimelineIncomeTankCard({
       </header>
 
       <div className="min-w-0 p-3">
-        <div className="flex min-w-0 items-stretch gap-3">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <ul className="pl-2">
-              {sortedItems.map((line, i) => (
-                <li
-                  key={line.id}
-                  className={
-                    i > 0 ? "border-t border-slate-100 pt-2.5 mt-2.5" : undefined
-                  }
-                >
-                  <div
-                    className={`relative grid grid-cols-[3.5rem_minmax(0,1fr)_4.25rem_1rem_1rem] items-baseline gap-1.5 px-1 py-0.5 text-left ${
-                      line.cleared ? "opacity-100" : "opacity-75"
-                    }`}
-                  >
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Match Snapshot roadmap “Starting Funds … Let’s do this” row */}
+          <div className="mb-3 flex justify-center pr-1.5 sm:pr-2">
+            <p className="inline-flex flex-wrap items-baseline justify-center gap-2">
+              <span className="text-[15px] font-medium italic text-slate-500">Target Income</span>
+              <span
+                className={`text-[1.05rem] font-semibold leading-none tabular-nums text-slate-700 ${amountInter.className}`}
+              >
+                {fmt(targetIncomeTotal)}
+              </span>
+              <span
+                className={`ml-1 text-xl font-semibold italic text-orange-700/90 ${myJourneyNav.className}`}
+              >
+                Making Stacks
+              </span>
+            </p>
+          </div>
+
+          {/* Scheduled Pay — same rhythm as Snapshot Bills (banner + dated lines) */}
+          <div className="px-2.5 sm:px-3">
+            <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+              <h3 className="text-[12px] font-semibold text-slate-700">Scheduled Pay</h3>
+            </div>
+            <ul className="min-w-0 space-y-2 pl-3 sm:pl-4">
+              {sortedItems.map((line, index) => (
+                <li key={line.id} className="min-w-0">
+                  <div className="relative min-w-0">
                     {line.markedForDeletion ? (
                       <span
                         aria-hidden
-                        className="pointer-events-none absolute left-0 right-[3rem] top-1/2 -translate-y-1/2 border-t border-slate-500/80"
+                        className={cn(
+                          "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 border-t border-slate-500/80",
+                          editMode ? "right-[4.5rem]" : "right-[2.75rem]",
+                        )}
                       />
                     ) : null}
-                    <span className={`text-left text-[10px] font-semibold uppercase tracking-wide ${line.cleared ? "text-slate-400" : "text-slate-300"}`}>
-                      {line.expectedDate}
-                    </span>
-                    <span className="min-w-0 text-left text-[12px] font-medium">
-                      {editMode && !line.cleared && !line.markedForDeletion ? (
-                        <input
-                          type="text"
-                          value={line.label}
-                          onChange={(e) => onLabelChange?.(line.id, e.target.value)}
-                          className="w-full rounded-sm border border-slate-300 bg-white px-1 py-0.5 text-left text-[12px] font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                          aria-label={`Income label for ${line.expectedDate}`}
-                        />
-                      ) : (
-                        <span
-                          className={`block truncate ${
-                            line.markedForDeletion
-                              ? "text-slate-400"
-                              : line.cleared
-                                ? "text-slate-700"
-                                : "text-slate-400"
-                          }`}
+                      {/* Flex row: fixed date / amount / glyph widths; middle flex-1 basis-0 min-w-0 so dots reach the $ column */}
+                      <div
+                        className={cn(
+                          "flex w-full min-w-0 items-baseline gap-x-0.5 rounded-md text-[12px] leading-snug",
+                          !editMode &&
+                            cn(
+                              "-mx-1 cursor-pointer px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0087D2] focus-visible:ring-offset-1",
+                              scheduledPayRowHoverClass,
+                            ),
+                        )}
+                        role={!editMode ? "button" : undefined}
+                        tabIndex={!editMode ? 0 : undefined}
+                        onClick={
+                          !editMode ? () => setScheduledPayLine(line) : undefined
+                        }
+                        onKeyDown={
+                          !editMode
+                            ? (e: KeyboardEvent<HTMLDivElement>) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  setScheduledPayLine(line)
+                                }
+                              }
+                            : undefined
+                        }
+                        aria-label={
+                          !editMode
+                            ? `Open Scheduled Pay details for ${line.label}`
+                            : undefined
+                        }
+                      >
+                        <div
+                          className={cn(
+                            "w-[3.35rem] shrink-0 whitespace-nowrap pr-2 text-right text-[11px] font-normal leading-tight tabular-nums",
+                            amountInter.className,
+                            line.markedForDeletion && "text-slate-400",
+                            !line.markedForDeletion && line.cleared && "text-slate-400",
+                            !line.markedForDeletion && !line.cleared && "text-slate-700",
+                          )}
                         >
-                          {line.label}
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={`text-right text-[12px] font-medium tabular-nums ${
-                        line.cleared ? "text-slate-800" : "text-slate-400"
-                      } ${amountInter.className}`}
-                    >
-                      {editMode && !line.cleared && !line.markedForDeletion ? (
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          value={line.amount}
-                          onChange={(e) => onAmountChange?.(line.id, Number(e.target.value) || 0)}
-                          disabled={!!line.markedForDeletion}
-                          className={`w-[4rem] rounded-sm border border-slate-300 bg-white px-1 py-0.5 text-right text-[12px] font-medium tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500 ${amountInter.className}`}
-                          aria-label={`Income amount for ${line.label}`}
-                        />
-                      ) : (
-                        <span className={line.markedForDeletion ? "text-slate-400" : ""}>
-                          {fmt(line.amount)}
-                        </span>
-                      )}
-                    </span>
-                    <span className="inline-flex w-4 shrink-0 justify-center">
-                      {line.cleared ? (
-                        <Check
-                          className="h-4 w-4 -rotate-3 stroke-[3] text-emerald-600"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-label="Cleared"
-                          title="Cleared"
-                        />
-                      ) : null}
-                    </span>
-                    <span className="inline-flex w-4 shrink-0 justify-center">
-                      {editMode && !line.cleared ? (
-                        <button
-                          type="button"
-                          onClick={() => onToggleDelete?.(line.id)}
-                          className="rounded-sm px-1 py-0.5 font-semibold text-rose-600 transition-all hover:bg-rose-600 hover:text-white hover:shadow-sm"
-                          aria-label={line.markedForDeletion ? "Restore income item" : "Delete income item"}
-                          title={line.markedForDeletion ? "Restore (applies on save)" : "Delete (applies on save)"}
+                          {incomeDockDateLabel(
+                            line.expectedDate,
+                            index > 0 ? sortedItems[index - 1]!.expectedDate : null,
+                            DEFAULT_BUDGET_YEAR,
+                          )}
+                        </div>
+                        <div className="flex min-h-0 min-w-0 flex-1 basis-0 items-baseline gap-0.5 overflow-hidden font-semibold text-slate-700">
+                          {editMode && !line.cleared && !line.markedForDeletion ? (
+                            <input
+                              type="text"
+                              value={line.label}
+                              onChange={(e) => onLabelChange?.(line.id, e.target.value)}
+                              className="min-w-0 max-w-[min(100%,18rem)] shrink rounded-sm border border-slate-300 bg-white px-1 py-0.5 text-left text-[12px] font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                              aria-label={`Income label for ${line.expectedDate}`}
+                            />
+                          ) : (
+                            <span
+                              className={cn(
+                                "min-w-0 shrink truncate",
+                                line.markedForDeletion
+                                  ? "text-slate-400"
+                                  : line.cleared
+                                    ? "text-slate-500"
+                                    : "text-slate-800",
+                              )}
+                            >
+                              {line.label}
+                            </span>
+                          )}
+                          <span className={incomeRowDotFill} aria-hidden />
+                        </div>
+                        <div className="w-[5.25rem] shrink-0 text-right text-[11px] text-slate-500">
+                          {editMode && !line.cleared && !line.markedForDeletion ? (
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={line.amount}
+                              onChange={(e) => onAmountChange?.(line.id, Number(e.target.value) || 0)}
+                              disabled={!!line.markedForDeletion}
+                              className={cn(
+                                "w-[5.25rem] rounded-sm border border-slate-300 bg-white px-1 py-0.5 text-right text-[11px] font-medium tabular-nums text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500",
+                                amountInter.className,
+                              )}
+                              aria-label={`Income amount for ${line.label}`}
+                            />
+                          ) : (
+                            <span
+                              className={cn(
+                                `inline-block w-[5.25rem] text-right text-[11px] font-medium tabular-nums ${amountInter.className}`,
+                                line.markedForDeletion && "text-slate-400",
+                                !line.markedForDeletion && line.cleared && "text-slate-400",
+                                !line.markedForDeletion && !line.cleared && "text-slate-800",
+                              )}
+                            >
+                              {fmtDollarsPlain(line.amount)}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            "flex shrink-0 justify-center overflow-hidden",
+                            editMode ? "w-[4.25rem]" : "w-[2.25rem]",
+                          )}
                         >
-                          x
-                        </button>
-                      ) : null}
-                    </span>
-                  </div>
-                </li>
-              ))}
+                          <span className="inline-flex items-center justify-center gap-1">
+                            {line.cleared ? (
+                              <ReceivedCheckIcon aria-label="Received" />
+                            ) : (
+                              <RefreshCw
+                                className="h-3 w-3 shrink-0 stroke-[1.8] text-slate-500"
+                                aria-label="Scheduled recurring"
+                              />
+                            )}
+                            {editMode && !line.cleared ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onToggleDelete?.(line.id)
+                                }}
+                                className="rounded-sm px-1 py-0.5 text-[11px] font-semibold text-rose-600 transition-all hover:bg-rose-600 hover:text-white"
+                                aria-label={
+                                  line.markedForDeletion ? "Restore income item" : "Delete income item"
+                                }
+                                title={
+                                  line.markedForDeletion
+                                    ? "Restore (applies on save)"
+                                    : "Delete (applies on save)"
+                                }
+                              >
+                                ×
+                              </button>
+                            ) : null}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
             </ul>
+          </div>
+
+          {/* Other Income — border spans full row (through glyph column); +$ stays in 5.25rem amount column like rows above */}
+          <div className="mt-5 px-2.5 sm:px-3">
+            <div className="pl-3 sm:pl-4">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setOtherIncomeOpen(true)}
+                onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    setOtherIncomeOpen(true)
+                  }
+                }}
+                aria-label="Open Other Income details"
+                className={otherIncomePanelClass}
+              >
+                <div className="mb-2 flex min-w-0 items-baseline gap-0.5 border-b border-slate-200/90 pb-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[12px] font-semibold text-slate-700">Other Income</h3>
+                  </div>
+                  <span
+                    className={`inline-block w-[5.25rem] shrink-0 text-right text-[11px] font-medium tabular-nums text-emerald-700 ${amountInter.className}`}
+                  >
+                    {fmtDollarsPlain(otherIncomeAmount)}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center justify-center",
+                      editMode ? "w-[4.25rem]" : "w-[2.25rem]",
+                    )}
+                  >
+                    <CirclePlus
+                      className="h-3.5 w-3.5 shrink-0 stroke-[1.8] text-emerald-600/75"
+                      aria-hidden
+                    />
+                    <span className="sr-only">Bonus and extra income</span>
+                  </span>
+                </div>
+                <div className="flex min-w-0 gap-0.5">
+                  <p className="flex min-w-0 flex-1 items-start gap-1.5 text-[11px] leading-snug text-slate-600">
+                    <span className="inline-flex w-[1.5rem] shrink-0 justify-center pt-0.5">
+                      <Wallet className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                    </span>
+                    <span className="min-w-0">
+                      Side Hustle, refunds, gifts, venmo, freelance work …
+                    </span>
+                  </p>
+                  <span className="w-[5.25rem] shrink-0" aria-hidden />
+                  <span
+                    className={cn("shrink-0", editMode ? "w-[4.25rem]" : "w-[2.25rem]")}
+                    aria-hidden
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-2.5 sm:px-3">
             {editMode && showIncomeAddRow && (
               <div className="relative mt-3 rounded-sm border border-slate-200 bg-slate-50/70 p-2">
                 <button
@@ -295,26 +509,6 @@ export function TimelineIncomeTankCard({
               </div>
             )}
             {editMode && (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <div className="flex items-baseline justify-center gap-2">
-                  <p className="text-[15px] italic font-medium text-slate-500">
-                    Received
-                  </p>
-                  <div
-                    className={`text-[1.05rem] font-semibold leading-none tabular-nums text-slate-700 ${amountInter.className}`}
-                  >
-                    {fmt(received)}
-                  </div>
-                  <p className={`ml-3 inline-flex items-center gap-1.5 text-xl italic font-semibold text-orange-700/90 ${myJourneyNav.className}`}>
-                    <span>
-                      getting ready for April
-                    </span>
-                    <Sprout className="ml-0.5 h-4 w-4 shrink-0 text-orange-700/80" aria-hidden />
-                  </p>
-                </div>
-              </div>
-            )}
-            {editMode && (
               <div className="mt-3 flex items-center justify-end gap-1.5">
                 <button
                   type="button"
@@ -340,61 +534,103 @@ export function TimelineIncomeTankCard({
               </div>
             )}
           </div>
-          {!editMode && (
-            <div className="relative flex w-10 shrink-0 flex-col self-stretch">
-              <p className="shrink-0 text-right text-[9px] font-semibold uppercase tracking-wide text-slate-500">
-                Expected
-              </p>
-              <p
-                className={`shrink-0 pt-0.5 text-right text-[11px] font-semibold tabular-nums text-slate-700 ${amountInter.className}`}
-              >
-                {fmt(total)}
-              </p>
-              <div className="relative mt-1 min-h-[5rem] flex-1">
-                <p
-                  className={`absolute right-0 z-10 text-[11px] font-semibold italic leading-none tabular-nums text-emerald-800 ${amountInter.className}`}
-                  style={{ bottom: `calc(${fillPct}% + 5px)` }}
+
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="flex justify-center pr-1.5 sm:pr-2">
+              <div className="inline-flex flex-wrap items-baseline justify-center gap-2">
+                <p className="text-[15px] font-medium italic text-slate-500">Received</p>
+                <div
+                  className={`text-[1.05rem] font-semibold leading-none tabular-nums text-slate-700 ${amountInter.className}`}
                 >
                   {fmt(received)}
-                </p>
-                <div className="absolute inset-0 left-1/2 w-2 -translate-x-1/2 overflow-hidden rounded-[3px] bg-slate-200/70 ring-1 ring-slate-300/50">
-                  <div
-                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-500 to-emerald-400 transition-all duration-500"
-                    style={{ height: `${fillPct}%` }}
-                  />
-                  {fillPct > 0 ? (
-                    <span
-                      aria-hidden
-                      className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-200 ring-1 ring-emerald-500/60"
-                      style={{ bottom: `calc(${fillPct}% - 3px)` }}
-                    />
-                  ) : null}
                 </div>
+                <p
+                  className={`ml-1 inline-flex items-center gap-1.5 text-xl font-semibold italic text-orange-700/90 ${myJourneyNav.className}`}
+                >
+                  <span>getting ready for {nextMonthName}</span>
+                  <Sprout className="ml-0.5 h-4 w-4 shrink-0 text-orange-700/80" aria-hidden />
+                </p>
               </div>
             </div>
-          )}
+          </div>
         </div>
-        {!editMode && (
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            <div className="flex items-baseline justify-center gap-2">
-              <p className="text-[15px] italic font-medium text-slate-500">
-                Received
-              </p>
-              <div
-                className={`text-[1.05rem] font-semibold leading-none tabular-nums text-slate-700 ${amountInter.className}`}
-              >
-                {fmt(received)}
+      </div>
+
+      <Dialog
+        open={scheduledPayLine !== null}
+        onOpenChange={(open) => {
+          if (!open) setScheduledPayLine(null)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scheduled Pay</DialogTitle>
+          </DialogHeader>
+          {scheduledPayLine ? (
+            <div className="space-y-3 text-sm text-slate-700">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Source
+                </p>
+                <p className="text-base font-medium text-slate-900">
+                  {scheduledPayLine.label}
+                </p>
               </div>
-              <p className={`ml-3 inline-flex items-center gap-1.5 text-xl italic font-semibold text-orange-700/90 ${myJourneyNav.className}`}>
-                <span>
-                  getting ready for April
-                </span>
-                <Sprout className="ml-0.5 h-4 w-4 shrink-0 text-orange-700/80" aria-hidden />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Expected date
+                </p>
+                <p>{scheduledPayLine.expectedDate}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Amount
+                </p>
+                <p
+                  className={`text-base font-semibold tabular-nums text-slate-900 ${amountInter.className}`}
+                >
+                  {fmtDollarsPlain(scheduledPayLine.amount)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Status
+                </p>
+                <p>{scheduledPayLine.cleared ? "Received" : "Scheduled"}</p>
+              </div>
+              {scheduledPayLine.markedForDeletion ? (
+                <p className="text-xs text-amber-800">
+                  Marked for deletion (applies when you save).
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={otherIncomeOpen} onOpenChange={setOtherIncomeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Other Income</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-slate-700">
+            <p className="leading-relaxed text-slate-600">
+              Side hustles, refunds, gifts, Venmo, freelance work, and other
+              amounts not tied to a scheduled pay date.
+            </p>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Budgeted amount
+              </p>
+              <p
+                className={`text-lg font-semibold tabular-nums text-emerald-700 ${amountInter.className}`}
+              >
+                {fmtDollarsPlain(otherIncomeAmount)}
               </p>
             </div>
           </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

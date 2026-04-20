@@ -1,5 +1,6 @@
 import { TimelineWorkspace } from "./timeline-workspace"
 
-export default function TimelinePage() {
+/** Legacy roadmap + activity layout; main Timeline nav item is `/`. */
+export default function OldTimelinePage() {
   return <TimelineWorkspace visualVariant="lab-soft-slate" />
 }

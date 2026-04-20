@@ -10,6 +10,8 @@ export type ExpectedIncomeLine = {
   expectedDate: string
   amount: number
   cleared: boolean
+  /** Set while editing timeline income; omitted once saved. */
+  markedForDeletion?: boolean
 }
 
 export const MOCK_EXPECTED_INCOME: ExpectedIncomeLine[] = [
@@ -29,6 +31,8 @@ export type RoadmapLineItem = {
   actual: number
   /** Typically budget − spent; can be negative if over. */
   left: number
+  /** Set while editing timeline budget; omitted once saved. */
+  markedForDeletion?: boolean
 }
 
 /** Top-level category keys — maps to icon + accent in the timeline UI. */

@@ -1,10 +1,10 @@
-import { TimelineWorkspace } from "@/app/(dashboard)/timeline/timeline-workspace"
+import { TimelineWorkspace } from "@/app/(dashboard)/old/timeline-workspace"
 
 export default function TimelineBetaPage() {
   return (
     <TimelineWorkspace
       visualVariant="lab-soft-slate"
-      topLeftLinkHref="/timeline"
+      topLeftLinkHref="/"
       topLeftLinkLabel="Back to Timeline"
     />
   )

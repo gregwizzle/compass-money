@@ -73,6 +73,13 @@ export function labelFromMonthIndex(index: number): MonthLabel {
   return MONTH_LABELS[clampMonthIndex(index)]
 }
 
+/** 3-letter month chip: first letter uppercase, next two lowercase (e.g. `Apr`). */
+export function formatMonthAbbrevDisplay(label: string): string {
+  const s = label.trim().slice(0, 3)
+  if (s.length === 0) return label
+  return s.slice(0, 1).toUpperCase() + s.slice(1).toLowerCase()
+}
+
 /** Full English month name for titles (e.g. "March Roadmap"). */
 const MONTH_LONG_NAMES = [
   "January",
@@ -96,6 +103,13 @@ export function monthLongNameFromIndex(monthIndex: number): string {
 export function monthLongNameFromLabel(label: MonthLabel): string {
   const i = monthIndexFromLabel(label)
   return i === null ? "January" : monthLongNameFromIndex(i)
+}
+
+/** Long name of the calendar month after `label` (Dec → January). */
+export function nextMonthLongNameFromLabel(label: MonthLabel): string {
+  const i = monthIndexFromLabel(label)
+  const base = i === null ? 0 : i
+  return monthLongNameFromIndex((base + 1) % 12)
 }
 
 export function getCalendarMonthIndex(now: Date = new Date()): MonthIndex {

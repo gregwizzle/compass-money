@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { cn } from "@/lib/utils"
+import { DevPageStamp } from "@/components/dev-page-stamp"
 
 /**
  * Layout shell for the dashboard. `/timeline-beta` uses a tighter “hybrid” chrome:
@@ -25,7 +26,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       >
         <div
           className={cn(
-            "box-border flex min-h-[calc(100vh-2rem)] w-full flex-row items-stretch overflow-hidden rounded-xl border-2 border-slate-500 bg-stone-100 shadow-xl",
+            "box-border flex w-full flex-row items-stretch overflow-hidden rounded-xl border-2 border-slate-500 bg-stone-100 shadow-xl",
             isBetaHybrid && "max-w-5xl border-slate-400/90 shadow-lg",
           )}
         >
@@ -37,7 +38,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             )}
           >
             <DashboardHeader />
-            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            <div
+              id="dashboard-main-pane"
+              className="relative flex min-h-0 flex-1 flex-col"
+            >
+              {children}
+              <DevPageStamp />
+            </div>
           </div>
         </div>
       </div>

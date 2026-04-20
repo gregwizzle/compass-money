@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
   CalendarRange,
-  Camera,
   CircleQuestionMark,
   Footprints,
   Gift,
@@ -9,13 +8,13 @@ import {
   List as ListIcon,
   Map,
   Settings,
+  Trash2,
   User,
 } from "lucide-react"
 
 /** Primary sidebar routes (order preserved for nav UI) */
 export const dashboardPrimaryNav = [
-  { name: "Snapshot", href: "/", icon: Camera },
-  { name: "Timeline", href: "/timeline", icon: CalendarRange },
+  { name: "Timeline", href: "/", icon: CalendarRange },
   { name: "Roadmap", href: "/roadmap", icon: Map },
   { name: "Activity", href: "/activity", icon: ListIcon },
   { name: "Accounts", href: "/accounts", icon: Landmark },
@@ -34,11 +33,16 @@ export const dashboardReferNav = {
   icon: Gift,
 } as const
 
+/** Shown under the v1.0 Beta footer label (legacy routes). */
+export const dashboardBetaFooterNav = [
+  { name: "Old", href: "/old", icon: Trash2 },
+] as const
+
 type RouteEntry = { href: string; title: string; icon: LucideIcon }
 
 const ROUTE_INDEX: RouteEntry[] = [
-  { href: "/", title: "Snapshot", icon: Camera },
-  { href: "/timeline", title: "Timeline", icon: CalendarRange },
+  { href: "/", title: "Timeline", icon: CalendarRange },
+  { href: "/old", title: "Old", icon: Trash2 },
   { href: "/roadmap", title: "Roadmap", icon: Map },
   { href: "/activity", title: "Activity", icon: ListIcon },
   { href: "/accounts", title: "Accounts", icon: Landmark },
@@ -59,7 +63,7 @@ export function resolveDashboardRoute(pathname: string): {
 } {
   const normalized = pathname || "/"
   if (normalized === "/") {
-    return { title: "Snapshot", icon: Camera }
+    return { title: "Timeline", icon: CalendarRange }
   }
   const sorted = ROUTE_INDEX.filter((r) => r.href !== "/").sort(
     (a, b) => b.href.length - a.href.length,
@@ -69,5 +73,5 @@ export function resolveDashboardRoute(pathname: string): {
       return { title: r.title, icon: r.icon }
     }
   }
-  return { title: "Snapshot", icon: Camera }
+  return { title: "Timeline", icon: CalendarRange }
 }

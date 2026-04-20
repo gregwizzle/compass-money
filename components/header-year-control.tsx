@@ -100,7 +100,7 @@ export function HeaderYearControl() {
               <button
                 type="button"
                 className={cn(
-                  "flex min-w-0 w-full items-center justify-end gap-0.5 text-[10px] font-medium text-slate-500",
+                  "flex min-w-0 w-full cursor-pointer items-center justify-end gap-0.5 text-[10px] font-medium text-slate-500",
                   "underline-offset-2 hover:text-slate-700 hover:underline",
                   "outline-none focus-visible:text-slate-700 focus-visible:underline",
                   "focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2",

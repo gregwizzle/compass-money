@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async redirects() {
-    return [{ source: "/plan", destination: "/roadmap", permanent: true }]
+    return [
+      { source: "/plan", destination: "/roadmap", permanent: true },
+      { source: "/timeline", destination: "/old", permanent: true },
+    ]
   },
   typescript: {
     ignoreBuildErrors: true,
