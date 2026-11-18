@@ -104,12 +104,14 @@ export function DashboardHeader() {
   const { title, icon: PageIcon } = resolveDashboardRoute(pathname)
   const isMyJourney =
     pathname === "/my-journey" || pathname.startsWith("/my-journey/")
-  /** Year control lives inside Timeline2 / Roadmap headers instead. */
+  /** Roadmap owns its page header (title, tabs, year) on the canvas. */
+  const isRoadmap =
+    pathname === "/roadmap" || pathname.startsWith("/roadmap/")
+  /** Year control lives inside Logbook header instead. */
   const hideYearControl =
-    pathname === "/timeline-2" ||
-    pathname.startsWith("/timeline-2/") ||
-    pathname === "/roadmap" ||
-    pathname.startsWith("/roadmap/")
+    pathname === "/logbook" || pathname.startsWith("/logbook/")
+
+  if (isRoadmap) return null
 
   return (
     <header className="flex min-h-[60px] w-full shrink-0 items-end gap-4 rounded-tr-xl bg-stone-100 px-4 pb-2 pt-2">

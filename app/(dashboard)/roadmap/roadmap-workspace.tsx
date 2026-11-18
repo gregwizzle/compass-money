@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { HelpCircle, Lock, Star } from "lucide-react"
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
+import { CalendarDays, HelpCircle, Lock, Map, Star } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ArchiveYearModal } from "@/components/archive-year-modal"
+import { HeaderYearControl } from "@/components/header-year-control"
 import {
   DEFAULT_BUDGET_YEAR,
   MONTH_LABELS,
@@ -107,7 +109,7 @@ const JAN_STARTING_FUNDS = 6000
 const planInnerCardClass =
   "flex min-w-0 flex-col overflow-hidden rounded-sm border border-slate-300/70 bg-white shadow-[0_2px_10px_rgba(15,23,42,0.06)]"
 
-/** Matches Timeline2 / Snapshot activity row hover. */
+/** Matches Logbook / Snapshot activity row hover. */
 const ROW_INTERACTIVE_CLASS =
   "cursor-pointer transition-colors duration-150 hover:bg-sky-50/90 hover:shadow-[inset_0_0_0_1px_rgba(2,132,199,0.22)] focus-visible:outline-none focus-visible:bg-sky-50/90 focus-visible:shadow-[inset_0_0_0_1px_rgba(2,132,199,0.22)]"
 
@@ -641,6 +643,64 @@ function SectionCard({
   )
 }
 
+function StashTrajectoryCard({
+  dec31Projection,
+  onArchiveClick,
+}: {
+  dec31Projection: number
+  onArchiveClick: () => void
+}) {
+  return (
+    <div
+      className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+      aria-label="Year-end stash trajectory"
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-3.5">
+        <div className="flex flex-col items-center">
+          <span className="mb-1 whitespace-nowrap text-[11.5px] font-medium italic leading-none tracking-wide text-slate-400">
+            Starting Stash
+          </span>
+          <span
+            className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+          >
+            {fmtCurrencyPlain(STARTING_STASH)}
+          </span>
+        </div>
+        <span
+          className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+          aria-hidden
+        >
+          ➔
+        </span>
+        <div className="flex flex-col items-center">
+          <span className="mb-1 whitespace-nowrap text-[11.5px] font-semibold italic leading-none tracking-wide text-slate-600">
+            Dec 31 Projection
+          </span>
+          <span
+            className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-900 ${amountInter.className}`}
+          >
+            {fmtCurrencyPlain(dec31Projection)}
+          </span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onArchiveClick}
+        aria-label={`How archiving ${DEFAULT_BUDGET_YEAR} works`}
+        className="group inline-flex shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-200 px-3.5 py-1.5 text-slate-400 transition-all duration-300 hover:bg-gradient-to-b hover:from-sky-100 hover:to-sky-200/90 hover:text-sky-700/80"
+      >
+        <span className="whitespace-nowrap text-[12.5px] font-bold leading-tight">
+          ARCHIVE {DEFAULT_BUDGET_YEAR} &raquo;
+        </span>
+        <span className="text-[10px] font-medium italic leading-tight text-slate-500 transition-colors duration-300 group-hover:text-sky-600/80">
+          Unlocks after Dec Cashout
+        </span>
+      </button>
+    </div>
+  )
+}
+
 function PlanTable({
   children,
   compact = false,
@@ -664,10 +724,11 @@ function PlanTable({
 }
 
 /**
- * Roadmap: My Bills / My Income / Forecast with Timeline2 chrome.
+ * Roadmap: My Bills / My Income / Forecast with Logbook chrome.
  */
 export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<RoadmapTab>("my-bills")
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false)
   const [infoKind, setInfoKind] = useState<BlueprintKind | null>(null)
   const [formSession, setFormSession] = useState<FormSession | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -1032,26 +1093,27 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
 
   return (
     <div className="relative flex flex-col">
-      <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-3">
+      <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-2">
         <header
-          className={cn(
-            planInnerCardClass,
-            "flex-row flex-wrap items-center justify-between gap-4 px-5 py-3",
-          )}
+          className="flex min-h-[52px] w-full flex-wrap items-end justify-between gap-x-4 gap-y-2"
           aria-labelledby="roadmap-heading"
         >
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-            <h2
+            <h1
               id="roadmap-heading"
-              className={`min-w-0 shrink-0 text-[20px] font-bold tracking-tight tabular-nums text-slate-900 ${amountInter.className}`}
+              className="flex min-w-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
             >
-              {DEFAULT_BUDGET_YEAR}
-            </h2>
-            <span className="shrink-0 text-slate-300" aria-hidden>
+              <Map
+                className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]"
+                aria-hidden
+              />
+              <span className="min-w-0 truncate">Roadmap</span>
+            </h1>
+            <span className="shrink-0 self-center text-slate-300" aria-hidden>
               |
             </span>
             <div
-              className="inline-flex w-auto max-w-full items-center gap-1"
+              className="inline-flex w-auto max-w-full items-center gap-1 self-center"
               role="tablist"
               aria-label="Roadmap sections"
             >
@@ -1078,51 +1140,24 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
             </div>
           </div>
 
-          <div
-            className="mx-auto flex min-w-0 shrink-0 items-center gap-3.5"
-            aria-label="Year-end stash trajectory"
-          >
-            <div className="flex flex-col items-center">
-              <span className="mb-1 whitespace-nowrap text-[11.5px] font-medium italic leading-none tracking-wide text-slate-400">
-                Starting Stash
-              </span>
-              <span
-                className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
-              >
-                {fmtCurrencyPlain(STARTING_STASH)}
-              </span>
-            </div>
-            <span
-              className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+          <div className="flex shrink-0 items-end">
+            <CalendarDays
+              className="mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
+              strokeWidth={1.5}
               aria-hidden
+            />
+            <Suspense
+              fallback={
+                <span
+                  className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
+                >
+                  …
+                </span>
+              }
             >
-              ➔
-            </span>
-            <div className="flex flex-col items-center">
-              <span className="mb-1 whitespace-nowrap text-[11.5px] font-semibold italic leading-none tracking-wide text-slate-600">
-                Dec 31 Projection
-              </span>
-              <span
-                className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-900 ${amountInter.className}`}
-              >
-                {fmtCurrencyPlain(dec31Projection)}
-              </span>
-            </div>
+              <HeaderYearControl />
+            </Suspense>
           </div>
-
-          <button
-            type="button"
-            disabled
-            aria-disabled
-            className="ml-auto inline-flex shrink-0 cursor-not-allowed flex-col items-center justify-center gap-0.5 rounded-lg border border-slate-200/80 bg-gradient-to-b from-slate-200 to-slate-200 px-3.5 py-1.5 text-slate-400"
-          >
-            <span className="whitespace-nowrap text-[12.5px] font-bold leading-tight">
-              ARCHIVE {DEFAULT_BUDGET_YEAR} &raquo;
-            </span>
-            <span className="text-[10px] font-medium italic leading-tight text-slate-500">
-              Unlocks after Dec Cashout
-            </span>
-          </button>
         </header>
 
         <div className="relative z-10 min-w-0 space-y-4">
@@ -1214,6 +1249,10 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
               </SectionCard>
 
               <div className="flex min-w-0 flex-col gap-4">
+                <StashTrajectoryCard
+                  dec31Projection={dec31Projection}
+                  onArchiveClick={() => setIsArchiveOpen(true)}
+                />
                 <SectionCard
                   title="My Living Funds"
                   actionLabel="+ New Living Fund"
@@ -1309,7 +1348,7 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
           ) : null}
 
           {activeTab === "my-income" ? (
-            <>
+            <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.38fr)_minmax(0,1fr)] lg:items-start">
               <SectionCard
                 title="My Recurring Income"
                 actionLabel="+ New Income"
@@ -1434,60 +1473,73 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
                 </PlanTable>
               </SectionCard>
 
-              <SectionCard
-                title="Planned Extra Cash"
-                actionLabel="+ Extra Cash"
-                onAction={() => openAddModal("windfall")}
-                onInfo={() => setInfoKind("windfall")}
-                infoLabel="About Planned Extra Cash"
-              >
-                <PlanTable>
-                  {sortedWindfalls.map((item) => (
-                    <tr
-                      key={item.id}
-                      tabIndex={0}
-                      className={ROW_INTERACTIVE_CLASS}
-                      onClick={() => openEditModal("windfall", item.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault()
-                          openEditModal("windfall", item.id)
-                        }
-                      }}
-                    >
-                      <td className="max-w-[14rem] truncate px-3 py-2 text-[12px] font-medium text-slate-800">
-                        {item.name}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-[12px] text-slate-600">
-                        {formatWhenOneOff(item.monthIndex, item.day)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-[12px]">
-                        <ApplyToBadge
-                          label={
-                            item.applyTo === "starting-funds"
-                              ? "Starting Funds"
-                              : "Direct Stash"
+              <div className="flex min-w-0 flex-col gap-4">
+                <StashTrajectoryCard
+                  dec31Projection={dec31Projection}
+                  onArchiveClick={() => setIsArchiveOpen(true)}
+                />
+                <SectionCard
+                  title="Planned Extra Cash"
+                  actionLabel="+ Extra Cash"
+                  onAction={() => openAddModal("windfall")}
+                  onInfo={() => setInfoKind("windfall")}
+                  infoLabel="About Planned Extra Cash"
+                >
+                  <PlanTable>
+                    {sortedWindfalls.map((item) => (
+                      <tr
+                        key={item.id}
+                        tabIndex={0}
+                        className={ROW_INTERACTIVE_CLASS}
+                        onClick={() => openEditModal("windfall", item.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            openEditModal("windfall", item.id)
                           }
-                          tone={
-                            item.applyTo === "starting-funds" ? "sky" : "emerald"
-                          }
-                        />
-                      </td>
-                      <AmountCell className="text-emerald-700">
-                        +{fmtDollars(item.amount)}
-                      </AmountCell>
-                    </tr>
-                  ))}
-                </PlanTable>
-              </SectionCard>
-            </>
+                        }}
+                      >
+                        <td className="max-w-[14rem] truncate px-3 py-2 text-[12px] font-medium text-slate-800">
+                          {item.name}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-[12px] text-slate-600">
+                          {formatWhenOneOff(item.monthIndex, item.day)}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-[12px]">
+                          <ApplyToBadge
+                            label={
+                              item.applyTo === "starting-funds"
+                                ? "Starting Funds"
+                                : "Direct Stash"
+                            }
+                            tone={
+                              item.applyTo === "starting-funds"
+                                ? "sky"
+                                : "emerald"
+                            }
+                          />
+                        </td>
+                        <AmountCell className="text-emerald-700">
+                          +{fmtDollars(item.amount)}
+                        </AmountCell>
+                      </tr>
+                    ))}
+                  </PlanTable>
+                </SectionCard>
+              </div>
+            </div>
           ) : null}
 
           {activeTab === "forecast" ? (
-            <article
-              className={planInnerCardClass}
-              aria-labelledby="roadmap-forecast-heading"
-            >
+            <div className="flex min-w-0 flex-col gap-4">
+              <StashTrajectoryCard
+                dec31Projection={dec31Projection}
+                onArchiveClick={() => setIsArchiveOpen(true)}
+              />
+              <article
+                className={planInnerCardClass}
+                aria-labelledby="roadmap-forecast-heading"
+              >
               <div className="border-b border-slate-200 px-3 py-2.5">
                 <h3
                   id="roadmap-forecast-heading"
@@ -1637,10 +1689,19 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
                   ))}
                 </div>
               </div>
-            </article>
+              </article>
+            </div>
           ) : null}
         </div>
       </div>
+
+      <ArchiveYearModal
+        isOpen={isArchiveOpen}
+        onOpenChange={setIsArchiveOpen}
+        year={DEFAULT_BUDGET_YEAR}
+        nextYear={DEFAULT_BUDGET_YEAR + 1}
+        isReadyToArchive={false}
+      />
 
       <Dialog
         open={infoKind !== null}

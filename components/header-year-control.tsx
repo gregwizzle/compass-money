@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 
 type HeaderYearControlProps = {
-  /** Compact single-line `2026 ▾` for Timeline2 month strip. */
+  /** Compact single-line `2026 ▾` for Logbook month strip. */
   variant?: "default" | "compact"
 }
 

@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { CompassRoseLogo } from "@/components/compass-rose-logo"
-import { compassWordmark, myJourneyNav } from "@/lib/fonts"
+import { CATEGORY_GLYPH } from "@/components/roadmap-categories-grid"
+import { amountInter, compassWordmark, myJourneyNav } from "@/lib/fonts"
 import {
   dashboardBetaFooterNav,
   dashboardPrimaryNav,
@@ -11,7 +12,53 @@ import {
   dashboardSecondaryNav,
 } from "@/lib/dashboard-nav"
 import { cn } from "@/lib/utils"
-import { ChevronRight, LogOut } from "lucide-react"
+import { ChevronRight, Landmark, LogOut, Receipt, type LucideIcon } from "lucide-react"
+
+/** Demo balances — same figures + glyphs as the top-right header MetricsStrip. */
+const SIDEBAR_SCOREBOARD: {
+  id: string
+  label: string
+  value: number
+  href: string
+  valueClass: string
+  icon: LucideIcon
+}[] = [
+  {
+    id: "stash",
+    label: "Stash",
+    value: 4200,
+    href: "/accounts",
+    valueClass: "text-slate-700",
+    icon: Receipt,
+  },
+  {
+    id: "owe",
+    label: "Owe",
+    value: 1850,
+    href: "/activity",
+    valueClass: "text-[#C07A6E]",
+    icon: CATEGORY_GLYPH.subscriptions.Icon,
+  },
+  {
+    id: "savings",
+    label: "Savings",
+    value: 12500,
+    href: "/accounts",
+    valueClass: "text-emerald-600",
+    icon: Landmark,
+  },
+]
+
+function fmtSidebarCurrency(n: number) {
+  const sign = n < 0 ? "-" : ""
+  const abs = Math.abs(n).toLocaleString()
+  return (
+    <span className="inline-flex items-baseline">
+      <span className="text-[0.9em] opacity-70">{sign}$</span>
+      <span className="ml-[0.12em]">{abs}</span>
+    </span>
+  )
+}
 
 /** Replace with session user when auth exists */
 const DISPLAY_NAME = "First LastName"
@@ -44,7 +91,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
     >
       <div className="flex min-h-[60px] shrink-0 items-end pl-4 pr-3 pb-2 pt-2">
         <Link
-          href="/"
+          href="/logbook"
           className="flex min-w-0 items-end gap-2.5 rounded-md pr-1 pb-0 pt-0 outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0087D2]"
           aria-label="Compass Money home"
         >
@@ -68,6 +115,38 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
             </span>
           </span>
         </Link>
+      </div>
+
+      <div
+        className="flex flex-col gap-0.5 border-b border-slate-200 px-2 pb-2.5 pt-0.5"
+        aria-label="Balances overview"
+      >
+        {SIDEBAR_SCOREBOARD.map((row) => {
+          const Icon = row.icon
+          return (
+            <Link
+              key={row.id}
+              href={row.href}
+              className="flex cursor-pointer items-center justify-between gap-2 rounded-r-lg py-1 pl-3 pr-2 transition-colors duration-150 hover:bg-stone-200/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0087D2]"
+            >
+              <span className="inline-flex min-w-0 items-center gap-3 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                <Icon
+                  className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500"
+                  aria-hidden
+                />
+                {row.label}
+              </span>
+              <span
+                className={cn(
+                  `text-[12px] font-bold tabular-nums leading-none ${amountInter.className}`,
+                  row.valueClass,
+                )}
+              >
+                {fmtSidebarCurrency(row.value)}
+              </span>
+            </Link>
+          )
+        })}
       </div>
 
       <nav className="flex flex-col py-2">
@@ -228,7 +307,9 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
         <ul className="mt-2 flex flex-col gap-0.5">
           {dashboardBetaFooterNav.map((item) => {
             const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`)
+              item.href === "/"
+                ? pathname === "/"
+                : pathname === item.href || pathname.startsWith(`${item.href}/`)
             return (
               <li key={item.href}>
                 <Link

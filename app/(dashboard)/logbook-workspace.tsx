@@ -51,7 +51,7 @@ import {
 } from "@/lib/budget-month"
 import { cn } from "@/lib/utils"
 
-type Timeline2Tab = "plan" | "activity" | "income-dock" | "cashout"
+type LogbookTab = "plan" | "activity" | "income-dock" | "cashout"
 
 type CreditOutpostCycle = {
   id: string
@@ -67,7 +67,7 @@ type CreditOutpostCycle = {
 
 type BillStatus = "paid" | "autodraft" | "pay" | "pending"
 
-const TABS: { id: Timeline2Tab; label: string }[] = [
+const TABS: { id: LogbookTab; label: string }[] = [
   { id: "plan", label: "Plan" },
   { id: "activity", label: "Activity" },
   { id: "income-dock", label: "Income Dock" },
@@ -256,11 +256,11 @@ function BillStatusGutter({ status }: { status: BillStatus }) {
 }
 
 /**
- * Timeline 2: Plan two-column layout + persistent scoreboard header + Timeline modals.
+ * Logbook: Plan two-column layout + persistent scoreboard header + shared modals.
  */
-export function Timeline2Workspace() {
+export function LogbookWorkspace() {
   const { selectedMonth, setSelectedMonth } = useMonthSelection()
-  const [activeTab, setActiveTab] = useState<Timeline2Tab>("plan")
+  const [activeTab, setActiveTab] = useState<LogbookTab>("plan")
   const [isSettleUpOpen, setIsSettleUpOpen] = useState(false)
   const [isCreditOutpostAboutOpen, setIsCreditOutpostAboutOpen] = useState(false)
   const [selectedBill, setSelectedBill] = useState<SnapshotBill | null>(null)
@@ -356,17 +356,17 @@ export function Timeline2Workspace() {
           </div>
         </div>
 
-        {/* Active-month header: November | tabs · math — single row */}
+        {/* Active-month header: November Log | tabs · math — single row */}
         <header
           className={cn(planInnerCardClass, "flex-row items-center justify-between gap-4 px-5 py-3")}
-          aria-labelledby="timeline-2-heading"
+          aria-labelledby="logbook-heading"
         >
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
             <h2
-              id="timeline-2-heading"
+              id="logbook-heading"
               className="min-w-0 shrink-0 text-[20px] font-bold tracking-tight text-slate-900"
             >
-              {monthName}
+              {monthName} Log
             </h2>
             <span className="shrink-0 text-slate-300" aria-hidden>
               |
@@ -374,7 +374,7 @@ export function Timeline2Workspace() {
             <div
               className="inline-flex w-auto max-w-full items-center gap-1"
               role="tablist"
-              aria-label="Timeline 2 sections"
+              aria-label="Logbook sections"
             >
               {TABS.map((tab) => {
                 const isActive = activeTab === tab.id
@@ -474,8 +474,8 @@ export function Timeline2Workspace() {
               aria-pressed={activeTab === "cashout"}
               aria-label={
                 isArchivedMonth
-                  ? `Open Cashout Receipt for ${monthName}`
-                  : `Open Cashout for ${monthName}`
+                  ? `Open Cashout Receipt for ${monthName} Log`
+                  : `Open Cashout for ${monthName} Log`
               }
               className={cn(
                 "shrink-0 cursor-pointer whitespace-nowrap rounded-lg border-0 bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-700 transition-all duration-200 hover:bg-emerald-100/80 hover:text-emerald-800 hover:shadow-[0_2px_10px_rgba(16,185,129,0.22)] hover:ring-1 hover:ring-emerald-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1",
@@ -514,12 +514,12 @@ export function Timeline2Workspace() {
               <div className="flex min-w-0 flex-col gap-4">
                   <article
                     className={planInnerCardClass}
-                    aria-labelledby="timeline-2-living-heading"
+                    aria-labelledby="logbook-living-heading"
                   >
                     <div className="border-b border-slate-200 px-3 py-2.5">
                       <div className="flex min-w-0 items-baseline justify-between gap-2">
                         <h3
-                          id="timeline-2-living-heading"
+                          id="logbook-living-heading"
                           className="shrink-0 text-[12px] font-semibold text-slate-700"
                         >
                           Living Funds
@@ -644,7 +644,7 @@ export function Timeline2Workspace() {
 
                   <article
                     className={planInnerCardClass}
-                    aria-labelledby="timeline-2-credit-heading"
+                    aria-labelledby="logbook-credit-heading"
                   >
                     <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
                       <div className="flex min-w-0 items-center gap-2">
@@ -653,7 +653,7 @@ export function Timeline2Workspace() {
                           aria-hidden
                         />
                         <h3
-                          id="timeline-2-credit-heading"
+                          id="logbook-credit-heading"
                           className="text-[12px] font-semibold text-slate-700"
                         >
                           Credit Card Payments
@@ -791,11 +791,11 @@ export function Timeline2Workspace() {
               </div>
 
               {/* Right: full-height Bills */}
-              <article className={planInnerCardClass} aria-labelledby="timeline-2-bills-heading">
+              <article className={planInnerCardClass} aria-labelledby="logbook-bills-heading">
                 <div className="border-b border-slate-200 px-3 py-2.5">
                   <div className="flex min-w-0 items-baseline justify-between gap-2">
                     <h3
-                      id="timeline-2-bills-heading"
+                      id="logbook-bills-heading"
                       className="shrink-0 text-[12px] font-semibold text-slate-700"
                     >
                       Bills
@@ -896,11 +896,11 @@ export function Timeline2Workspace() {
               <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
                 <article
                   className={cn(planInnerCardClass, "h-full")}
-                  aria-labelledby="timeline-2-cashout-how-heading"
+                  aria-labelledby="logbook-cashout-how-heading"
                 >
                   <div className="border-b border-slate-200 px-3 py-2.5">
                     <h3
-                      id="timeline-2-cashout-how-heading"
+                      id="logbook-cashout-how-heading"
                       className="text-[12px] font-semibold text-slate-700"
                     >
                       How Cash Out Works
@@ -914,7 +914,7 @@ export function Timeline2Workspace() {
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-slate-800">
-                            Finalize {monthName}
+                            Close out the {monthName} Log
                           </h4>
                           <p className="mt-1 text-sm text-slate-600">
                             We tally up your actual expenses and subtract them from your Starting
@@ -1012,11 +1012,11 @@ export function Timeline2Workspace() {
 
                 <article
                   className={planInnerCardClass}
-                  aria-labelledby="timeline-2-understanding-heading"
+                  aria-labelledby="logbook-understanding-heading"
                 >
                   <div className="border-b border-slate-200 px-3 py-2.5">
                     <h3
-                      id="timeline-2-understanding-heading"
+                      id="logbook-understanding-heading"
                       className="text-[12px] font-semibold text-slate-700"
                     >
                       Understanding Your Numbers
@@ -1133,7 +1133,7 @@ export function Timeline2Workspace() {
                             <span className="rounded bg-slate-100 px-1 py-0.5 text-[11px] font-semibold tracking-wide text-slate-700">
                               STASH
                             </span>{" "}
-                            after closing {monthName}, recalculated from actual spending (
+                            after closing the {monthName} Log, recalculated from actual spending (
                             Starting Funds − Actual Bills − Actual Living Expenses). Any unspent
                             Living Funds (
                             <span
@@ -1503,7 +1503,7 @@ export function Timeline2Workspace() {
       <SettleUpModal
         isOpen={isSettleUpOpen}
         onOpenChange={setIsSettleUpOpen}
-        currentMonth={monthName}
+        currentMonth={`${monthName} Log`}
         nextMonth={nextMonthLabel}
         startingFunds={SNAPSHOT_STARTING_FUNDS}
         totalExpenses={totalBudget + livingOverage}

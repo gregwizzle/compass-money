@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  BookOpen,
   CalendarRange,
   CircleQuestionMark,
   Footprints,
@@ -14,8 +15,7 @@ import {
 
 /** Primary sidebar routes (order preserved for nav UI) */
 export const dashboardPrimaryNav = [
-  { name: "Timeline", href: "/", icon: CalendarRange },
-  { name: "Timeline 2", href: "/timeline-2", icon: CalendarRange },
+  { name: "Logbook", href: "/logbook", icon: BookOpen },
   { name: "Roadmap", href: "/roadmap", icon: Map },
   { name: "Activity", href: "/activity", icon: ListIcon },
   { name: "Accounts", href: "/accounts", icon: Landmark },
@@ -37,13 +37,14 @@ export const dashboardReferNav = {
 /** Shown under the v1.0 Beta footer label (legacy routes). */
 export const dashboardBetaFooterNav = [
   { name: "Old", href: "/old", icon: Trash2 },
+  { name: "Timeline", href: "/", icon: CalendarRange },
 ] as const
 
 type RouteEntry = { href: string; title: string; icon: LucideIcon }
 
 const ROUTE_INDEX: RouteEntry[] = [
   { href: "/", title: "Timeline", icon: CalendarRange },
-  { href: "/timeline-2", title: "Timeline 2", icon: CalendarRange },
+  { href: "/logbook", title: "Logbook", icon: BookOpen },
   { href: "/old", title: "Old", icon: Trash2 },
   { href: "/roadmap", title: "Roadmap", icon: Map },
   { href: "/activity", title: "Activity", icon: ListIcon },
