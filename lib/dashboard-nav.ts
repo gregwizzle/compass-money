@@ -15,6 +15,7 @@ import {
 /** Primary sidebar routes (order preserved for nav UI) */
 export const dashboardPrimaryNav = [
   { name: "Timeline", href: "/", icon: CalendarRange },
+  { name: "Timeline 2", href: "/timeline-2", icon: CalendarRange },
   { name: "Roadmap", href: "/roadmap", icon: Map },
   { name: "Activity", href: "/activity", icon: ListIcon },
   { name: "Accounts", href: "/accounts", icon: Landmark },
@@ -42,6 +43,7 @@ type RouteEntry = { href: string; title: string; icon: LucideIcon }
 
 const ROUTE_INDEX: RouteEntry[] = [
   { href: "/", title: "Timeline", icon: CalendarRange },
+  { href: "/timeline-2", title: "Timeline 2", icon: CalendarRange },
   { href: "/old", title: "Old", icon: Trash2 },
   { href: "/roadmap", title: "Roadmap", icon: Map },
   { href: "/activity", title: "Activity", icon: ListIcon },

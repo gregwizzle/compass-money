@@ -104,6 +104,12 @@ export function DashboardHeader() {
   const { title, icon: PageIcon } = resolveDashboardRoute(pathname)
   const isMyJourney =
     pathname === "/my-journey" || pathname.startsWith("/my-journey/")
+  /** Year control lives inside Timeline2 / Roadmap headers instead. */
+  const hideYearControl =
+    pathname === "/timeline-2" ||
+    pathname.startsWith("/timeline-2/") ||
+    pathname === "/roadmap" ||
+    pathname.startsWith("/roadmap/")
 
   return (
     <header className="flex min-h-[60px] w-full shrink-0 items-end gap-4 rounded-tr-xl bg-stone-100 px-4 pb-2 pt-2">
@@ -136,20 +142,26 @@ export function DashboardHeader() {
 
       <div className="flex shrink-0 items-end">
         <MetricsStrip />
-        <CalendarDays
-          className="ml-7 mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
-          strokeWidth={1.5}
-          aria-hidden
-        />
-        <Suspense
-          fallback={
-            <span className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}>
-              …
-            </span>
-          }
-        >
-          <HeaderYearControl />
-        </Suspense>
+        {!hideYearControl ? (
+          <>
+            <CalendarDays
+              className="ml-7 mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <Suspense
+              fallback={
+                <span
+                  className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
+                >
+                  …
+                </span>
+              }
+            >
+              <HeaderYearControl />
+            </Suspense>
+          </>
+        ) : null}
       </div>
     </header>
   )
