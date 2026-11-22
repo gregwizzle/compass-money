@@ -4,6 +4,9 @@ import { Suspense, useMemo, useState, type KeyboardEvent } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
+  BookOpen,
+  CalendarDays,
+  ChevronLeft,
   ChevronRight,
   CreditCard,
   Info,
@@ -14,7 +17,7 @@ import {
 import { ActivityLedger } from "@/components/activity-ledger"
 import { DottedLeaderRow } from "@/components/dotted-leader-row"
 import { HeaderYearControl } from "@/components/header-year-control"
-import { MonthStrip, useMonthSelection } from "@/components/month-strip"
+import { useMonthSelection } from "@/hooks/use-month-selection"
 import { ReceivedCheckIcon } from "@/components/received-check-icon"
 import { SettleUpModal } from "@/components/settle-up-modal"
 import {
@@ -44,7 +47,9 @@ import { amountInter, myJourneyNav } from "@/lib/fonts"
 import {
   DEFAULT_BUDGET_YEAR,
   MONTH_LABELS,
+  getDefaultSelectedMonthLabel,
   getMonthStripFlags,
+  labelFromMonthIndex,
   monthIndexFromLabel,
   monthLongNameFromLabel,
   type MonthLabel,
@@ -272,9 +277,15 @@ export function LogbookWorkspace() {
   const monthName = monthLongNameFromLabel(selectedMonth)
   const monthAbbrev = selectedMonth.toUpperCase()
   const selectedMonthIndex = monthIndexFromLabel(selectedMonth) ?? 0
+  const liveMonth = getDefaultSelectedMonthLabel({ budgetYear: DEFAULT_BUDGET_YEAR })
+  const isViewingLiveMonth = selectedMonth === liveMonth
   const isArchivedMonth = getMonthStripFlags(selectedMonthIndex, {
     budgetYear: DEFAULT_BUDGET_YEAR,
   }).isArchived
+
+  const stepMonth = (delta: number) => {
+    setSelectedMonth(labelFromMonthIndex((selectedMonthIndex + delta + 12) % 12))
+  }
   const { expectedNet, totalBudget, billsTotal, livingBudget, livingOverage } = useMemo(
     () => getSnapshotExpectedCashout(),
     [],
@@ -330,51 +341,75 @@ export function LogbookWorkspace() {
 
   return (
     <div className="relative flex flex-col">
-      <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-3">
-        {/* Master year + month selector */}
-        <div className={cn(planInnerCardClass, "flex-row items-center gap-2 p-1.5")}>
-          <Suspense
-            fallback={
-              <span
-                className={`px-1.5 text-sm font-semibold tabular-nums text-slate-400 ${amountInter.className}`}
-              >
-                …
-              </span>
-            }
-          >
-            <HeaderYearControl variant="compact" />
-          </Suspense>
-          <span className="shrink-0 text-slate-300" aria-hidden>
-            |
-          </span>
-          <div className="min-w-0 flex-1">
-            <MonthStrip
-              value={selectedMonth}
-              onValueChange={setSelectedMonth}
-              className="rounded-none border-0 bg-transparent p-0 shadow-none"
-            />
-          </div>
-        </div>
-
-        {/* Active-month header: November Log | tabs · math — single row */}
+      <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-2">
         <header
-          className={cn(planInnerCardClass, "flex-row items-center justify-between gap-4 px-5 py-3")}
+          className="flex min-h-[52px] w-full flex-wrap items-end justify-between gap-x-4 gap-y-2"
           aria-labelledby="logbook-heading"
         >
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-            <h2
+            <h1
               id="logbook-heading"
-              className="min-w-0 shrink-0 text-[20px] font-bold tracking-tight text-slate-900"
+              className="flex min-w-0 items-center gap-1.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
             >
-              {monthName} Log
-            </h2>
-            <span className="shrink-0 text-slate-300" aria-hidden>
+              <BookOpen
+                className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]"
+                aria-hidden
+              />
+              <span
+                className="inline-flex min-w-0 items-center gap-0.5"
+                role="group"
+                aria-label="Month stepper"
+              >
+                <button
+                  type="button"
+                  onClick={() => stepMonth(-1)}
+                  className="inline-flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-stone-200/70 hover:text-slate-700"
+                  aria-label={`Previous month, ${prevMonthLabel}`}
+                >
+                  <ChevronLeft className="h-5 w-5 stroke-[2]" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isViewingLiveMonth) setSelectedMonth(liveMonth)
+                  }}
+                  disabled={isViewingLiveMonth}
+                  title={
+                    isViewingLiveMonth
+                      ? undefined
+                      : `Return to ${monthLongNameFromLabel(liveMonth)} Logbook`
+                  }
+                  className={cn(
+                    "min-w-0 truncate px-0.5 text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600",
+                    !isViewingLiveMonth &&
+                      "cursor-pointer rounded-md hover:bg-stone-200/70 hover:text-slate-900",
+                    isViewingLiveMonth && "cursor-default",
+                  )}
+                  aria-label={
+                    isViewingLiveMonth
+                      ? `${monthName} Logbook, current month`
+                      : `${monthName} Logbook. Click to return to ${monthLongNameFromLabel(liveMonth)}`
+                  }
+                >
+                  {monthName} Logbook
+                </button>
+                <button
+                  type="button"
+                  onClick={() => stepMonth(1)}
+                  className="inline-flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-stone-200/70 hover:text-slate-700"
+                  aria-label={`Next month, ${nextMonthLabel}`}
+                >
+                  <ChevronRight className="h-5 w-5 stroke-[2]" aria-hidden />
+                </button>
+              </span>
+            </h1>
+            <span className="shrink-0 self-center text-slate-300" aria-hidden>
               |
             </span>
             <div
-              className="inline-flex w-auto max-w-full items-center gap-1"
+              className="inline-flex w-auto max-w-full items-center gap-1 self-center"
               role="tablist"
-              aria-label="Logbook sections"
+              aria-label={`${monthName} Log sections`}
             >
               {TABS.map((tab) => {
                 const isActive = activeTab === tab.id
@@ -399,119 +434,137 @@ export function LogbookWorkspace() {
             </div>
           </div>
 
-          <div
-            className="ml-auto flex min-w-0 shrink-0 items-center gap-3.5"
-            aria-label="Month math"
-          >
-            <div className="hidden items-center gap-3.5 xl:flex">
-              <div className="flex flex-col items-center">
-                <MathLabelTip
-                  label="Starting Funds"
-                  tip="Total income collected last month that rolled forward to fund this month."
-                />
+          <div className="flex shrink-0 items-end">
+            <CalendarDays
+              className="mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <Suspense
+              fallback={
                 <span
-                  className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                  className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
                 >
-                  {fmtCurrencyPlain(SNAPSHOT_STARTING_FUNDS)}
+                  …
                 </span>
-              </div>
-              <span
-                className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
-                aria-hidden
-              >
-                −
-              </span>
-              <div className="flex flex-col items-center">
-                <MathLabelTip
-                  label="Bills"
-                  tip="100% of this month's scheduled bills—both paid and upcoming—reserved upfront."
-                />
-                <span
-                  className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
-                >
-                  {fmtCurrencyPlain(billsTotal)}
-                </span>
-              </div>
-              <span
-                className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
-                aria-hidden
-              >
-                −
-              </span>
-              <div className="flex flex-col items-center">
-                <MathLabelTip
-                  label="Living Funds"
-                  tip="Assumes 100% of your funded categories plus any overages will be spent, protecting your remaining balance."
-                />
-                <span
-                  className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
-                >
-                  {fmtCurrencyPlain(livingFundsEquation)}
-                </span>
-              </div>
-              <span
-                className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
-                aria-hidden
-              >
-                =
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <MathLabelTip
-                label="Cashout"
-                tip="Projected monthly surplus swept into STASH at month-end (recalculated from actual spending when you close the month)."
-                emphasize
-              />
-              <span
-                className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-900 ${amountInter.className}`}
-              >
-                {fmtCurrencyPlain(expectedNet)}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab("cashout")}
-              aria-pressed={activeTab === "cashout"}
-              aria-label={
-                isArchivedMonth
-                  ? `Open Cashout Receipt for ${monthName} Log`
-                  : `Open Cashout for ${monthName} Log`
               }
-              className={cn(
-                "shrink-0 cursor-pointer whitespace-nowrap rounded-lg border-0 bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-700 transition-all duration-200 hover:bg-emerald-100/80 hover:text-emerald-800 hover:shadow-[0_2px_10px_rgba(16,185,129,0.22)] hover:ring-1 hover:ring-emerald-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1",
-                activeTab === "cashout" &&
-                  "bg-emerald-100/90 text-emerald-800 shadow-[0_2px_8px_rgba(16,185,129,0.18)]",
-              )}
             >
-              {isArchivedMonth ? (
-                <span>Cashout Receipt</span>
-              ) : activeTab !== "cashout" && isCashoutUnlocked ? (
-                <span className="inline-flex flex-col items-center">
-                  <span className="text-[12.5px] font-bold leading-tight">
-                    Cashout {monthAbbrev} &raquo;
-                  </span>
-                  <span className="mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium leading-none text-emerald-600/80">
-                    <span
-                      className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
-                      aria-hidden
-                    />
-                    Ready
-                  </span>
-                </span>
-              ) : (
-                <span>
-                  Cashout {monthAbbrev} &raquo;
-                </span>
-              )}
-            </button>
+              <HeaderYearControl />
+            </Suspense>
           </div>
         </header>
 
         <div className="relative z-10 min-w-0 space-y-4">
           {activeTab === "plan" ? (
             <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start">
-              {/* Left stack: Living Funds → Credit Cards */}
+              {/* Left stack: Monthly summary → Living Funds → Credit Cards */}
               <div className="flex min-w-0 flex-col gap-4">
+                  <div
+                    className="flex min-w-0 flex-nowrap items-center justify-between gap-3 overflow-x-auto rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                    aria-label="Monthly summary"
+                  >
+                    <div className="flex shrink-0 flex-nowrap items-center gap-3">
+                      <div className="flex flex-col items-center">
+                        <MathLabelTip
+                          label="Starting Funds"
+                          tip="Total income collected last month that rolled forward to fund this month."
+                        />
+                        <span
+                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                        >
+                          {fmtCurrencyPlain(SNAPSHOT_STARTING_FUNDS)}
+                        </span>
+                      </div>
+                      <span
+                        className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+                        aria-hidden
+                      >
+                        −
+                      </span>
+                      <div className="flex flex-col items-center">
+                        <MathLabelTip
+                          label="Bills"
+                          tip="100% of this month's scheduled bills—both paid and upcoming—reserved upfront."
+                        />
+                        <span
+                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                        >
+                          {fmtCurrencyPlain(billsTotal)}
+                        </span>
+                      </div>
+                      <span
+                        className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+                        aria-hidden
+                      >
+                        −
+                      </span>
+                      <div className="flex flex-col items-center">
+                        <MathLabelTip
+                          label="Living Funds"
+                          tip="Assumes 100% of your funded categories plus any overages will be spent, protecting your remaining balance."
+                        />
+                        <span
+                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                        >
+                          {fmtCurrencyPlain(livingFundsEquation)}
+                        </span>
+                      </div>
+                      <span
+                        className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+                        aria-hidden
+                      >
+                        =
+                      </span>
+                      <div className="flex flex-col items-center">
+                        <MathLabelTip
+                          label="Cashout"
+                          tip="Projected monthly surplus swept into STASH at month-end (recalculated from actual spending when you close the month)."
+                          emphasize
+                        />
+                        <span
+                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-900 ${amountInter.className}`}
+                        >
+                          {fmtCurrencyPlain(expectedNet)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("cashout")}
+                      aria-pressed={activeTab === "cashout"}
+                      aria-label={
+                        isArchivedMonth
+                          ? `Open Cashout Receipt for ${monthName} Log`
+                          : `Open Cashout for ${monthName} Log`
+                      }
+                      className={cn(
+                        "shrink-0 cursor-pointer whitespace-nowrap rounded-lg border-0 bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-700 transition-all duration-200 hover:bg-emerald-100/80 hover:text-emerald-800 hover:shadow-[0_2px_10px_rgba(16,185,129,0.22)] hover:ring-1 hover:ring-emerald-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1",
+                        activeTab === "cashout" &&
+                          "bg-emerald-100/90 text-emerald-800 shadow-[0_2px_8px_rgba(16,185,129,0.18)]",
+                      )}
+                    >
+                      {isArchivedMonth ? (
+                        <span>Cashout Receipt</span>
+                      ) : activeTab !== "cashout" && isCashoutUnlocked ? (
+                        <span className="inline-flex flex-col items-center">
+                          <span className="text-[12.5px] font-bold leading-tight">
+                            Cashout {monthAbbrev} &raquo;
+                          </span>
+                          <span className="mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium leading-none text-emerald-600/80">
+                            <span
+                              className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                              aria-hidden
+                            />
+                            Ready
+                          </span>
+                        </span>
+                      ) : (
+                        <span>Cashout {monthAbbrev} &raquo;</span>
+                      )}
+                    </button>
+                  </div>
+
                   <article
                     className={planInnerCardClass}
                     aria-labelledby="logbook-living-heading"

@@ -104,14 +104,14 @@ export function DashboardHeader() {
   const { title, icon: PageIcon } = resolveDashboardRoute(pathname)
   const isMyJourney =
     pathname === "/my-journey" || pathname.startsWith("/my-journey/")
-  /** Roadmap owns its page header (title, tabs, year) on the canvas. */
-  const isRoadmap =
-    pathname === "/roadmap" || pathname.startsWith("/roadmap/")
-  /** Year control lives inside Logbook header instead. */
-  const hideYearControl =
-    pathname === "/logbook" || pathname.startsWith("/logbook/")
+  /** Roadmap / Logbook own their page headers (title, year) on the canvas. */
+  const ownsCanvasHeader =
+    pathname === "/roadmap" ||
+    pathname.startsWith("/roadmap/") ||
+    pathname === "/logbook" ||
+    pathname.startsWith("/logbook/")
 
-  if (isRoadmap) return null
+  if (ownsCanvasHeader) return null
 
   return (
     <header className="flex min-h-[60px] w-full shrink-0 items-end gap-4 rounded-tr-xl bg-stone-100 px-4 pb-2 pt-2">
@@ -144,26 +144,22 @@ export function DashboardHeader() {
 
       <div className="flex shrink-0 items-end">
         <MetricsStrip />
-        {!hideYearControl ? (
-          <>
-            <CalendarDays
-              className="ml-7 mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <Suspense
-              fallback={
-                <span
-                  className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
-                >
-                  …
-                </span>
-              }
+        <CalendarDays
+          className="ml-7 mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
+          strokeWidth={1.5}
+          aria-hidden
+        />
+        <Suspense
+          fallback={
+            <span
+              className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
             >
-              <HeaderYearControl />
-            </Suspense>
-          </>
-        ) : null}
+              …
+            </span>
+          }
+        >
+          <HeaderYearControl />
+        </Suspense>
       </div>
     </header>
   )

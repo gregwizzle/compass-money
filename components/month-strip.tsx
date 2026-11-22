@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Lock, Star } from "lucide-react"
+import { Check, Lock, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   DEFAULT_BUDGET_YEAR,
@@ -19,6 +19,11 @@ export type MonthStripProps = {
   /** Controlled: parent owns selected month */
   value?: MonthLabel
   onValueChange?: (month: MonthLabel) => void
+  /**
+   * `default` — pill chips (legacy Timeline / Snapshot).
+   * `canvas` — bare text row for Logbook / Roadmap-style headers.
+   */
+  variant?: "default" | "canvas"
 }
 
 export function MonthStrip({
@@ -27,6 +32,7 @@ export function MonthStrip({
   className,
   value,
   onValueChange,
+  variant = "default",
 }: MonthStripProps) {
   const internal = useMonthSelection(budgetYear ?? DEFAULT_BUDGET_YEAR, { now })
 
@@ -40,6 +46,73 @@ export function MonthStrip({
     const idx = monthIndexFromLabel(selectedMonth) ?? 0
     return getSnapshotViewForMonth(idx, { budgetYear: internal.budgetYear, now })
   }, [selectedMonth, internal.budgetYear, now])
+
+  if (variant === "canvas") {
+    return (
+      <div
+        className={cn(
+          "flex w-full min-w-0 items-stretch justify-between gap-0.5",
+          className,
+        )}
+        role="navigation"
+        aria-label="Budget months"
+        data-snapshot-view={snapshotView}
+      >
+        {internal.monthLabels.map((month) => {
+          const monthIndex = monthIndexFromLabel(month) ?? 0
+          const state = internal.getFlags(monthIndex)
+          const isSelected = selectedMonth === month
+
+          return (
+            <button
+              key={month}
+              type="button"
+              title={formatMonthStripTooltip(state, isSelected)}
+              onClick={() => setSelectedMonth(month)}
+              className={cn(
+                "relative flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 px-0.5 pb-1.5 pt-0.5 text-[11px] font-medium transition-colors",
+                isSelected
+                  ? "font-bold text-slate-900"
+                  : "text-slate-500 hover:text-slate-900",
+                state.isArchived && !isSelected && "italic text-slate-400 hover:text-slate-600",
+              )}
+              data-phase={state.isLive ? "live" : state.isArchived ? "archived" : "future"}
+              data-selected={isSelected}
+            >
+              <span className="flex items-center justify-center gap-0.5 leading-none">
+                {state.isArchived ? (
+                  <Check
+                    className="h-2.5 w-2.5 shrink-0 stroke-[2.5] text-emerald-600/80"
+                    aria-hidden
+                  />
+                ) : null}
+                {state.isLive ? (
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0087D2]"
+                    aria-hidden
+                  />
+                ) : null}
+                {state.isFuture && !state.isLive && !state.isArchived ? (
+                  <span
+                    className="h-1 w-1 shrink-0 rounded-full bg-slate-300"
+                    aria-hidden
+                  />
+                ) : null}
+                <span>{month}</span>
+              </span>
+              <span
+                className={cn(
+                  "absolute inset-x-0 bottom-0 h-0.5 rounded-full transition-colors",
+                  isSelected ? "bg-[#0087D2]" : "bg-transparent",
+                )}
+                aria-hidden
+              />
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div
