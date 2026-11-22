@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   BookOpen,
   CalendarDays,
-  ChevronLeft,
   ChevronRight,
   CreditCard,
   Info,
@@ -47,9 +46,7 @@ import { amountInter, myJourneyNav } from "@/lib/fonts"
 import {
   DEFAULT_BUDGET_YEAR,
   MONTH_LABELS,
-  getDefaultSelectedMonthLabel,
   getMonthStripFlags,
-  labelFromMonthIndex,
   monthIndexFromLabel,
   monthLongNameFromLabel,
   type MonthLabel,
@@ -196,10 +193,12 @@ function MathLabelTip({
   label,
   tip,
   emphasize = false,
+  compact = false,
 }: {
   label: string
   tip: string
   emphasize?: boolean
+  compact?: boolean
 }) {
   return (
     <Tooltip>
@@ -207,7 +206,8 @@ function MathLabelTip({
         <button
           type="button"
           className={cn(
-            "mb-1 cursor-help whitespace-nowrap text-[11.5px] italic leading-none tracking-wide transition-colors hover:text-slate-600 focus-visible:text-slate-600 focus-visible:outline-none",
+            "mb-0.5 cursor-help whitespace-nowrap italic leading-none tracking-wide transition-colors hover:text-slate-600 focus-visible:text-slate-600 focus-visible:outline-none",
+            compact ? "text-[10px]" : "text-[11.5px]",
             emphasize
               ? "font-semibold text-slate-600"
               : "font-medium text-slate-400",
@@ -224,6 +224,82 @@ function MathLabelTip({
         {tip}
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+function monthGaugeStatusLabel(flags: {
+  isLive: boolean
+  isArchived: boolean
+  isFuture: boolean
+}) {
+  if (flags.isArchived) return "Closed"
+  if (flags.isFuture) return "Upcoming"
+  return "Current"
+}
+
+function AnnualMonthGauge({
+  selectedMonth,
+  onSelect,
+  budgetYear = DEFAULT_BUDGET_YEAR,
+}: {
+  selectedMonth: MonthLabel
+  onSelect: (month: MonthLabel) => void
+  budgetYear?: number
+}) {
+  return (
+    <div
+      className="inline-flex shrink-0 items-center"
+      role="navigation"
+      aria-label="Annual month gauge"
+    >
+      {MONTH_LABELS.map((month, monthIndex) => {
+        const flags = getMonthStripFlags(monthIndex, { budgetYear })
+        const isSelected = selectedMonth === month
+        const status = monthGaugeStatusLabel(flags)
+        const tooltip = `${monthLongNameFromLabel(month)} · ${status}`
+
+        return (
+          <Tooltip key={month}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onSelect(month)}
+                aria-label={tooltip}
+                aria-pressed={isSelected}
+                className={cn(
+                  "cursor-pointer border-b-2 px-1.5 pb-1 text-[11px] tracking-tight transition-colors",
+                  // Underline is status-locked and never changes on select.
+                  flags.isArchived
+                    ? "border-emerald-500/60"
+                    : flags.isLive
+                      ? "border-orange-700/90"
+                      : "border-slate-200",
+                  // Text follows selection, except unselected live month stays burnt orange.
+                  // Closed months keep italics whether selected or not.
+                  flags.isArchived && "italic",
+                  isSelected
+                    ? "font-semibold uppercase text-[#0087D2]"
+                    : flags.isArchived
+                      ? "font-medium text-emerald-700/80 hover:text-emerald-800"
+                      : flags.isLive
+                        ? "font-semibold text-orange-700/90 hover:text-orange-800"
+                        : "font-medium text-slate-400 hover:text-slate-600",
+                )}
+              >
+                {isSelected ? month.toUpperCase() : month}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              sideOffset={6}
+              className="border border-slate-700/80 bg-slate-800 px-2 py-1.5 text-[11px] text-white shadow-md"
+            >
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        )
+      })}
+    </div>
   )
 }
 
@@ -277,15 +353,11 @@ export function LogbookWorkspace() {
   const monthName = monthLongNameFromLabel(selectedMonth)
   const monthAbbrev = selectedMonth.toUpperCase()
   const selectedMonthIndex = monthIndexFromLabel(selectedMonth) ?? 0
-  const liveMonth = getDefaultSelectedMonthLabel({ budgetYear: DEFAULT_BUDGET_YEAR })
-  const isViewingLiveMonth = selectedMonth === liveMonth
-  const isArchivedMonth = getMonthStripFlags(selectedMonthIndex, {
+  const selectedMonthFlags = getMonthStripFlags(selectedMonthIndex, {
     budgetYear: DEFAULT_BUDGET_YEAR,
-  }).isArchived
-
-  const stepMonth = (delta: number) => {
-    setSelectedMonth(labelFromMonthIndex((selectedMonthIndex + delta + 12) % 12))
-  }
+  })
+  const isArchivedMonth = selectedMonthFlags.isArchived
+  const isUpcomingMonth = selectedMonthFlags.isFuture
   const { expectedNet, totalBudget, billsTotal, livingBudget, livingOverage } = useMemo(
     () => getSnapshotExpectedCashout(),
     [],
@@ -343,71 +415,27 @@ export function LogbookWorkspace() {
     <div className="relative flex flex-col">
       <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-2">
         <header
-          className="flex min-h-[52px] w-full flex-wrap items-end justify-between gap-x-4 gap-y-2"
+          className="flex h-11 w-full flex-nowrap items-center justify-between gap-x-4"
           aria-labelledby="logbook-heading"
         >
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          <div className="flex min-w-0 shrink items-center gap-x-2.5">
             <h1
               id="logbook-heading"
-              className="flex min-w-0 items-center gap-1.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
+              className="flex shrink-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-none tracking-[-0.02em] text-slate-600"
             >
               <BookOpen
                 className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]"
                 aria-hidden
               />
-              <span
-                className="inline-flex min-w-0 items-center gap-0.5"
-                role="group"
-                aria-label="Month stepper"
-              >
-                <button
-                  type="button"
-                  onClick={() => stepMonth(-1)}
-                  className="inline-flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-stone-200/70 hover:text-slate-700"
-                  aria-label={`Previous month, ${prevMonthLabel}`}
-                >
-                  <ChevronLeft className="h-5 w-5 stroke-[2]" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isViewingLiveMonth) setSelectedMonth(liveMonth)
-                  }}
-                  disabled={isViewingLiveMonth}
-                  title={
-                    isViewingLiveMonth
-                      ? undefined
-                      : `Return to ${monthLongNameFromLabel(liveMonth)} Logbook`
-                  }
-                  className={cn(
-                    "min-w-0 truncate px-0.5 text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600",
-                    !isViewingLiveMonth &&
-                      "cursor-pointer rounded-md hover:bg-stone-200/70 hover:text-slate-900",
-                    isViewingLiveMonth && "cursor-default",
-                  )}
-                  aria-label={
-                    isViewingLiveMonth
-                      ? `${monthName} Logbook, current month`
-                      : `${monthName} Logbook. Click to return to ${monthLongNameFromLabel(liveMonth)}`
-                  }
-                >
-                  {monthName} Logbook
-                </button>
-                <button
-                  type="button"
-                  onClick={() => stepMonth(1)}
-                  className="inline-flex h-8 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-stone-200/70 hover:text-slate-700"
-                  aria-label={`Next month, ${nextMonthLabel}`}
-                >
-                  <ChevronRight className="h-5 w-5 stroke-[2]" aria-hidden />
-                </button>
+              <span className="inline-block w-[13.75rem] truncate whitespace-nowrap">
+                {monthName} Logbook
               </span>
             </h1>
-            <span className="shrink-0 self-center text-slate-300" aria-hidden>
+            <span className="shrink-0 text-slate-300" aria-hidden>
               |
             </span>
             <div
-              className="inline-flex w-auto max-w-full items-center gap-1 self-center"
+              className="inline-flex shrink-0 items-center gap-1"
               role="tablist"
               aria-label={`${monthName} Log sections`}
             >
@@ -434,23 +462,29 @@ export function LogbookWorkspace() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-end">
-            <CalendarDays
-              className="mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
-              strokeWidth={1.5}
-              aria-hidden
+          <div className="flex shrink-0 items-center gap-3 pl-12">
+            <AnnualMonthGauge
+              selectedMonth={selectedMonth}
+              onSelect={setSelectedMonth}
             />
-            <Suspense
-              fallback={
-                <span
-                  className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
-                >
-                  …
-                </span>
-              }
-            >
-              <HeaderYearControl />
-            </Suspense>
+            <div className="flex items-center">
+              <CalendarDays
+                className="mr-2.5 h-4 w-4 shrink-0 text-slate-400"
+                strokeWidth={1.5}
+                aria-hidden
+              />
+              <Suspense
+                fallback={
+                  <span
+                    className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
+                  >
+                    …
+                  </span>
+                }
+              >
+                <HeaderYearControl />
+              </Suspense>
+            </div>
           </div>
         </header>
 
@@ -460,109 +494,116 @@ export function LogbookWorkspace() {
               {/* Left stack: Monthly summary → Living Funds → Credit Cards */}
               <div className="flex min-w-0 flex-col gap-4">
                   <div
-                    className="flex min-w-0 flex-nowrap items-center justify-between gap-3 overflow-x-auto rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                    className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
                     aria-label="Monthly summary"
                   >
-                    <div className="flex shrink-0 flex-nowrap items-center gap-3">
-                      <div className="flex flex-col items-center">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-2.5">
+                      <div className="flex min-w-0 flex-col items-center">
                         <MathLabelTip
+                          compact
                           label="Starting Funds"
                           tip="Total income collected last month that rolled forward to fund this month."
                         />
                         <span
-                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                          className={`whitespace-nowrap text-[13px] font-bold leading-none tabular-nums text-slate-800 sm:text-[14px] ${amountInter.className}`}
                         >
                           {fmtCurrencyPlain(SNAPSHOT_STARTING_FUNDS)}
                         </span>
                       </div>
                       <span
-                        className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+                        className="select-none self-center text-[13px] font-medium leading-none text-slate-400"
                         aria-hidden
                       >
                         −
                       </span>
-                      <div className="flex flex-col items-center">
+                      <div className="flex min-w-0 flex-col items-center">
                         <MathLabelTip
+                          compact
                           label="Bills"
                           tip="100% of this month's scheduled bills—both paid and upcoming—reserved upfront."
                         />
                         <span
-                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                          className={`whitespace-nowrap text-[13px] font-bold leading-none tabular-nums text-slate-800 sm:text-[14px] ${amountInter.className}`}
                         >
                           {fmtCurrencyPlain(billsTotal)}
                         </span>
                       </div>
                       <span
-                        className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+                        className="select-none self-center text-[13px] font-medium leading-none text-slate-400"
                         aria-hidden
                       >
                         −
                       </span>
-                      <div className="flex flex-col items-center">
+                      <div className="flex min-w-0 flex-col items-center">
                         <MathLabelTip
+                          compact
                           label="Living Funds"
                           tip="Assumes 100% of your funded categories plus any overages will be spent, protecting your remaining balance."
                         />
                         <span
-                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
+                          className={`whitespace-nowrap text-[13px] font-bold leading-none tabular-nums text-slate-800 sm:text-[14px] ${amountInter.className}`}
                         >
                           {fmtCurrencyPlain(livingFundsEquation)}
                         </span>
                       </div>
                       <span
-                        className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
+                        className="select-none self-center text-[13px] font-medium leading-none text-slate-400"
                         aria-hidden
                       >
                         =
                       </span>
-                      <div className="flex flex-col items-center">
+                      <div className="flex min-w-0 flex-col items-center">
                         <MathLabelTip
+                          compact
+                          emphasize
                           label="Cashout"
                           tip="Projected monthly surplus swept into STASH at month-end (recalculated from actual spending when you close the month)."
-                          emphasize
                         />
                         <span
-                          className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-900 ${amountInter.className}`}
+                          className={`whitespace-nowrap text-[13px] font-bold leading-none tabular-nums text-slate-900 sm:text-[14px] ${amountInter.className}`}
                         >
                           {fmtCurrencyPlain(expectedNet)}
                         </span>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("cashout")}
-                      aria-pressed={activeTab === "cashout"}
-                      aria-label={
-                        isArchivedMonth
-                          ? `Open Cashout Receipt for ${monthName} Log`
-                          : `Open Cashout for ${monthName} Log`
-                      }
-                      className={cn(
-                        "shrink-0 cursor-pointer whitespace-nowrap rounded-lg border-0 bg-emerald-50 px-3.5 py-1.5 text-[13px] font-semibold text-emerald-700 transition-all duration-200 hover:bg-emerald-100/80 hover:text-emerald-800 hover:shadow-[0_2px_10px_rgba(16,185,129,0.22)] hover:ring-1 hover:ring-emerald-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1",
-                        activeTab === "cashout" &&
-                          "bg-emerald-100/90 text-emerald-800 shadow-[0_2px_8px_rgba(16,185,129,0.18)]",
-                      )}
-                    >
-                      {isArchivedMonth ? (
-                        <span>Cashout Receipt</span>
-                      ) : activeTab !== "cashout" && isCashoutUnlocked ? (
-                        <span className="inline-flex flex-col items-center">
-                          <span className="text-[12.5px] font-bold leading-tight">
+                    {isArchivedMonth ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[2px] border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                        <ReceivedCheckIcon className="h-3.5 w-3.5 text-emerald-600" />
+                        Swept to Stash
+                      </span>
+                    ) : isUpcomingMonth ? (
+                      <span className="shrink-0 whitespace-nowrap rounded-[2px] border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-400">
+                        Staged via Income Dock
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("cashout")}
+                        aria-pressed={activeTab === "cashout"}
+                        aria-label={`Open Cashout for ${monthName} Log`}
+                        className={cn(
+                          "shrink-0 cursor-pointer whitespace-nowrap rounded-[2px] border-0 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition-all duration-200 hover:bg-emerald-100/80 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1",
+                          activeTab === "cashout" &&
+                            "bg-emerald-100/90 text-emerald-800",
+                        )}
+                      >
+                        {isCashoutUnlocked ? (
+                          <span className="inline-flex items-center gap-1.5">
                             Cashout {monthAbbrev} &raquo;
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600/80">
+                              <span
+                                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                                aria-hidden
+                              />
+                              Ready
+                            </span>
                           </span>
-                          <span className="mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium leading-none text-emerald-600/80">
-                            <span
-                              className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
-                              aria-hidden
-                            />
-                            Ready
-                          </span>
-                        </span>
-                      ) : (
-                        <span>Cashout {monthAbbrev} &raquo;</span>
-                      )}
-                    </button>
+                        ) : (
+                          <span>Cashout {monthAbbrev} &raquo;</span>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   <article
@@ -877,11 +918,15 @@ export function LogbookWorkspace() {
                 </div>
                 <ul className="space-y-2 px-3 py-3 sm:px-4">
                   {allBillsChronological.map((b) => {
-                    const status = getBillStatus(b, SNAPSHOT_AS_OF_DAY)
+                    const liveStatus = getBillStatus(b, SNAPSHOT_AS_OF_DAY)
+                    const status: BillStatus = isArchivedMonth ? "paid" : liveStatus
                     const estimate = b.amount
                     const actual = BILL_ACTUAL_BY_ID[b.id]
                     const showVariance =
-                      status === "paid" && actual != null && actual !== estimate
+                      status === "paid" &&
+                      !isArchivedMonth &&
+                      actual != null &&
+                      actual !== estimate
                     const displayAmount = showVariance ? actual : estimate
 
                     return (
