@@ -1,8 +1,10 @@
 import type { LucideIcon } from "lucide-react"
-import { Car, Coffee, HeartPulse, Sparkles, UtensilsCrossed } from "lucide-react"
+import { Car, Coffee, Dices, HeartPulse, Sparkles, UtensilsCrossed } from "lucide-react"
 
 /**
- * Icons for the five snapshot “Living expenses” lines (distinct from each other; colors align with roadmap category accents).
+ * Icons for snapshot living-fund lines. Colors stay distinct from each other
+ * and align with the roadmap category accents. Curveballs is the catch-all
+ * for surprises that do not belong in any other living fund.
  */
 export const SNAPSHOT_LIVING_GLYPH: Record<
   string,
@@ -13,4 +15,5 @@ export const SNAPSHOT_LIVING_GLYPH: Record<
   gas: { Icon: Car, className: "text-slate-600" },
   personal: { Icon: HeartPulse, className: "text-emerald-600" },
   vibe: { Icon: Sparkles, className: "text-purple-500" },
+  curveballs: { Icon: Dices, className: "text-orange-600" },
 }

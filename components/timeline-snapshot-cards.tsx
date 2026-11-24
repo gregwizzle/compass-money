@@ -10,11 +10,10 @@ import {
   CreditCard,
   FileText,
   HelpCircle,
-  Info,
   List,
-  Maximize2,
   Receipt,
   RefreshCw,
+  Tag,
   Zap,
 } from "lucide-react"
 import { CATEGORY_GLYPH } from "@/components/roadmap-categories-grid"
@@ -34,7 +33,6 @@ import {
   MONTH_LABELS,
   formatMonthAbbrevDisplay,
   monthIndexFromLabel,
-  monthLongNameFromLabel,
   type MonthLabel,
 } from "@/lib/budget-month"
 import {
@@ -42,6 +40,7 @@ import {
   partitionBillsByPaid,
   SNAPSHOT_ACTIVITY_ROWS,
   SNAPSHOT_AS_OF_DAY,
+  SNAPSHOT_BILLS,
   SNAPSHOT_EXPECTED_INCOME,
   SNAPSHOT_GLYPH_LOOKUP,
   SNAPSHOT_LIVING,
@@ -237,13 +236,6 @@ function renderCategoryGlyph(
 function renderAssignToGlyph(appliedKey: string) {
   if (appliedKey.startsWith("living:")) {
     const id = appliedKey.slice("living:".length)
-    if (id === "curveballs") {
-      return (
-        <span className={cn("inline-flex w-4 justify-center text-[13px] leading-none", categoryGlyphClass)} aria-hidden>
-          ⚡
-        </span>
-      )
-    }
     const glyph = SNAPSHOT_LIVING_GLYPH[id]
     if (glyph) {
       const { Icon, className: iconClass } = glyph
@@ -317,6 +309,7 @@ export function TimelineSnapshotCard({
   onSelectBill,
   onSelectLivingLine,
   onOpenCashoutInfo,
+  onOpenBudget,
 }: {
   selectedMonth: MonthLabel
   cardRef?: Ref<HTMLElement>
@@ -326,6 +319,7 @@ export function TimelineSnapshotCard({
   onSelectBill?: (bill: SnapshotBill) => void
   onSelectLivingLine?: (line: SnapshotLivingLine) => void
   onOpenCashoutInfo?: () => void
+  onOpenBudget?: () => void
 }) {
   const { upcoming } = partitionBillsByPaid(SNAPSHOT_AS_OF_DAY)
   const snapshotMath = getSnapshotExpectedCashout()
@@ -333,7 +327,6 @@ export function TimelineSnapshotCard({
   const expectedNet = expectedNetOverride ?? snapshotMath.expectedNet
   const upcomingPreview = upcoming.slice(0, SNAPSHOT_UPCOMING_PREVIEW)
   const upcomingRest = Math.max(0, upcoming.length - SNAPSHOT_UPCOMING_PREVIEW)
-  const monthName = monthLongNameFromLabel(selectedMonth)
   const countdown = daysUntilNextMonth(selectedMonth)
 
   return (
@@ -351,17 +344,10 @@ export function TimelineSnapshotCard({
             <Camera className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
             <span className="min-w-0 truncate">Snapshot</span>
           </h2>
-          <Link
-            href={`/roadmap?month=${selectedMonth}`}
-            className="ml-auto inline-flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-[#0087D2] underline-offset-2 hover:underline"
-          >
-            <span>{monthName} Bills &amp; Income</span>
-            <Maximize2 className="h-3.5 w-3.5 shrink-0 stroke-[2] text-[#0087D2]" aria-hidden />
-          </Link>
         </div>
       </header>
       <div className="relative z-10 min-w-0 space-y-4 p-3">
-        <div className="px-2.5 sm:px-3">
+        <div className="px-2.5 pt-2 sm:px-3">
           <div className="mb-2 border-b border-slate-200 pb-2">
             <h3 className="text-[12px] font-semibold text-slate-700">Upcoming Bills</h3>
           </div>
@@ -419,18 +405,22 @@ export function TimelineSnapshotCard({
             <div className="mt-1 pl-3 sm:pl-4">
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <span className="w-[1.5rem] shrink-0" aria-hidden />
-                <span className="inline-flex items-center gap-0.5 text-left text-[10px] font-medium italic tracking-wide text-[#0087D2]">
+                <button
+                  type="button"
+                  onClick={() => onOpenBudget?.()}
+                  className="inline-flex cursor-pointer items-center gap-0.5 text-left text-[10px] font-medium italic tracking-wide text-[#0087D2] underline-offset-2 hover:underline"
+                >
                   {upcomingRest} more this month
                   <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
-                </span>
+                </button>
               </span>
             </div>
           ) : null}
         </div>
 
-        <div className="px-2.5 sm:px-3">
+        <div className="px-2.5 pb-3 sm:px-3">
           <div className="mb-2 flex min-w-0 items-baseline justify-between gap-2 border-b border-slate-200 pb-2">
-            <h3 className="shrink-0 text-[12px] font-semibold text-slate-700">Living Funds</h3>
+            <h3 className="shrink-0 text-[12px] font-semibold text-slate-700">Living Expenses</h3>
             <span className="shrink-0 text-right text-[11px] font-medium text-slate-500">
               Remaining Funds
             </span>
@@ -465,10 +455,6 @@ export function TimelineSnapshotCard({
                               className={cn("h-4 w-4 shrink-0 stroke-[1.5]", glyph.className)}
                               aria-hidden
                             />
-                          </span>
-                        ) : line.id === "curveballs" ? (
-                          <span className="inline-flex w-[1.5rem] shrink-0 justify-center text-[13px] leading-none" aria-hidden>
-                            ⚡
                           </span>
                         ) : null}
                         <span className="whitespace-nowrap">{line.shortName}</span>
@@ -542,11 +528,9 @@ export function TimelineSnapshotCard({
 
 export function TimelineCreditPaymentsCard({
   selectedMonth,
-  onAbout,
   onSelectCycle,
 }: {
   selectedMonth: MonthLabel
-  onAbout?: () => void
   onSelectCycle?: (cycleId: string) => void
 }) {
   const due = dueCyclesForMonth(selectedMonth)
@@ -564,14 +548,13 @@ export function TimelineCreditPaymentsCard({
           <CreditCard className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
           <span className="min-w-0 truncate">Credit Card Payments Due</span>
         </h2>
-        <button
-          type="button"
+        <Link
+          href="/accounts"
           className="inline-flex max-w-[min(100%,15rem)] shrink-0 cursor-pointer items-center gap-1 text-right text-[10px] font-semibold leading-snug text-[#0087D2] underline-offset-2 hover:underline sm:max-w-[18rem]"
-          onClick={() => onAbout?.()}
         >
-          <span>About Credit Cards & Reserves</span>
-          <Info className="h-3.5 w-3.5 shrink-0 stroke-[2]" aria-hidden />
-        </button>
+          <span>Credit Outpost</span>
+          <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+        </Link>
       </header>
       <div className="relative z-10 min-w-0 space-y-4 bg-slate-50/40 p-3">
         <div className="px-2.5 sm:px-3">
@@ -679,6 +662,33 @@ export function TimelineCreditPaymentsCard({
   )
 }
 
+const RECENT_ACTIVITY_ROW_CAP = 6
+
+function billLabelFromAppliedKey(appliedToKey: string) {
+  if (!appliedToKey.startsWith("bill:")) return null
+  const id = appliedToKey.slice("bill:".length)
+  return SNAPSHOT_BILLS.find((bill) => bill.id === id)?.listName ?? null
+}
+
+function isUnassignedActivity(row: SnapshotActivityRow) {
+  return !row.appliedToKey || row.category === "Unassigned"
+}
+
+function activityRecency(row: SnapshotActivityRow) {
+  const date = new Date(`${row.dateLabel}, ${DEFAULT_BUDGET_YEAR}`)
+  return Number.isNaN(date.getTime()) ? -1 : date.getTime()
+}
+
+/** Newest six in date order, plus any older unassigned rows that fell outside that window. */
+export function selectRecentActivityDisplay(rows: SnapshotActivityRow[], cap = RECENT_ACTIVITY_ROW_CAP) {
+  const byRecency = (a: SnapshotActivityRow, b: SnapshotActivityRow) => activityRecency(b) - activityRecency(a)
+  const ordered = [...rows].sort(byRecency)
+  const recent = ordered.slice(0, cap)
+  const shown = new Set(recent.map((row) => row.id))
+  const additionalUnassigned = ordered.filter((row) => isUnassignedActivity(row) && !shown.has(row.id))
+  return { recent, additionalUnassigned }
+}
+
 export function TimelineRecentActivityCard({
   selectedMonth: _selectedMonth,
   rows,
@@ -694,6 +704,116 @@ export function TimelineRecentActivityCard({
   onOpenFullMonth?: () => void
   onSelectRow?: (rowId: string) => void
 }) {
+  const { recent, additionalUnassigned } = selectRecentActivityDisplay(rows)
+  const shownCount = recent.length + additionalUnassigned.length
+
+  const renderActivityRow = (row: SnapshotActivityRow) => (
+    <TableRow
+      key={row.id}
+      className="group cursor-pointer border-slate-100 transition-colors hover:bg-sky-50/90"
+      tabIndex={0}
+      role="button"
+      onClick={() => onSelectRow?.(row.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onSelectRow?.(row.id)
+        }
+      }}
+    >
+      <TableCell
+        className={cn(
+          "px-2 py-1.5 text-[11px] tabular-nums",
+          ACTIVITY_ROW_HOVER_CELL_FIRST,
+          row.flow === "Income" ? "text-emerald-700" : "text-slate-500",
+        )}
+      >
+        <span className="inline-flex flex-wrap items-center gap-1.5 leading-tight">
+          <span>{row.dateLabel}</span>
+          {!row.fromStash &&
+          row.budgetMonthLabel &&
+          row.dateLabel.slice(0, 3) !== row.budgetMonthLabel.slice(0, 3) ? (
+            <span className="rounded border border-slate-200 bg-slate-50 px-1 py-px text-[9px] font-semibold tabular-nums text-slate-500">
+              {formatMonthAbbrevDisplay(row.budgetMonthLabel)}
+            </span>
+          ) : null}
+        </span>
+      </TableCell>
+      <TableCell
+        className={cn(
+          "max-w-[13rem] truncate px-2 py-1.5 text-[11px]",
+          ACTIVITY_ROW_HOVER_CELL_MIDDLE,
+          row.flow === "Income" ? "text-emerald-700" : "text-slate-700",
+        )}
+      >
+        {row.source}
+      </TableCell>
+      <TableCell
+        className={cn(
+          "max-w-[8rem] truncate px-2 py-1.5 text-[11px]",
+          ACTIVITY_ROW_HOVER_CELL_MIDDLE,
+          row.flow === "Income" ? "text-emerald-700" : "text-slate-500",
+        )}
+      >
+        {isUnassignedActivity(row) ? (
+          <span className="inline-flex min-w-0 items-center gap-x-1.5">
+            <Tag
+              className={cn("h-4 w-4 shrink-0 stroke-[1.5] text-slate-500", categoryGlyphClass)}
+              aria-hidden
+            />
+            <span className="text-[11px] font-medium text-[#0087D2]">Assign →</span>
+          </span>
+        ) : (
+          <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            {row.appliedToKey.startsWith("living:")
+              ? renderAssignToGlyph(row.appliedToKey)
+              : renderCategoryGlyph(
+                  billLabelFromAppliedKey(row.appliedToKey) ? "Bills" : row.category,
+                  row.flow,
+                  SNAPSHOT_GLYPH_LOOKUP,
+                )}
+            {row.fromStash && row.category === "Stash" ? (
+              <>
+                <span className="sr-only">Paid from My Stash</span>
+                <span className="shrink-0 rounded border border-amber-200/90 bg-amber-50/95 px-1 py-px text-[8px] font-semibold uppercase tracking-wide text-amber-900/90">
+                  Stash
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="truncate">{billLabelFromAppliedKey(row.appliedToKey) ?? row.category}</span>
+                {row.fromStash ? (
+                  <>
+                    <span className="sr-only">Paid from My Stash</span>
+                    <Receipt className="h-3 w-3 shrink-0 stroke-[1.75] text-slate-600" aria-hidden />
+                    <span className="shrink-0 rounded border border-amber-200/90 bg-amber-50/95 px-1 py-px text-[8px] font-semibold uppercase tracking-wide text-amber-900/90">
+                      Stash
+                    </span>
+                  </>
+                ) : null}
+              </>
+            )}
+          </span>
+        )}
+      </TableCell>
+      <TableCell
+        className={cn(
+          "px-2 py-1.5 text-right text-[11px] tabular-nums",
+          ACTIVITY_ROW_HOVER_CELL_LAST,
+          amountInter.className,
+          row.flow === "Income"
+            ? "text-emerald-700"
+            : row.flow === "Transfer"
+              ? "text-slate-500"
+              : "text-slate-700",
+        )}
+      >
+        {row.flow === "Income" ? "+" : row.flow === "Transfer" ? "" : "-"}$
+        {row.actual.toLocaleString()}
+      </TableCell>
+    </TableRow>
+  )
+
   return (
     <section
       className={cn(
@@ -717,8 +837,8 @@ export function TimelineRecentActivityCard({
             onClick={() => onOpenFullMonth?.()}
             className="ml-auto inline-flex max-w-[min(100%,14rem)] shrink-0 cursor-pointer items-center gap-1 text-right text-[10px] font-semibold leading-snug text-[#0087D2] underline-offset-2 hover:underline sm:max-w-none"
           >
-            <span className="leading-snug">Full Activity</span>
-            <Maximize2 className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+            <span className="leading-snug">View all</span>
+            <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
           </button>
         </div>
       </header>
@@ -741,110 +861,23 @@ export function TimelineRecentActivityCard({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="group cursor-pointer border-slate-100 transition-colors hover:bg-sky-50/90"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSelectRow?.(row.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault()
-                    onSelectRow?.(row.id)
-                  }
-                }}
-              >
-                <TableCell
-                  className={cn(
-                    "px-2 py-1.5 text-[11px] tabular-nums",
-                    ACTIVITY_ROW_HOVER_CELL_FIRST,
-                    row.flow === "Income" ? "text-emerald-700" : "text-slate-500",
-                  )}
-                >
-                  <span className="inline-flex flex-wrap items-center gap-1.5 leading-tight">
-                    <span>{row.dateLabel}</span>
-                    {!row.fromStash &&
-                    row.budgetMonthLabel &&
-                    row.dateLabel.slice(0, 3) !== row.budgetMonthLabel.slice(0, 3) ? (
-                      <span className="rounded border border-slate-200 bg-slate-50 px-1 py-px text-[9px] font-semibold tabular-nums text-slate-500">
-                        {formatMonthAbbrevDisplay(row.budgetMonthLabel)}
-                      </span>
-                    ) : null}
+            {recent.map(renderActivityRow)}
+            {additionalUnassigned.length > 0 ? (
+              <TableRow className="border-slate-100 hover:bg-transparent">
+                <TableCell colSpan={4} className="px-2 py-1.5 text-center">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                    Additional Unassigned Activity
                   </span>
                 </TableCell>
-                <TableCell
-                  className={cn(
-                    "max-w-[13rem] truncate px-2 py-1.5 text-[11px]",
-                    ACTIVITY_ROW_HOVER_CELL_MIDDLE,
-                    row.flow === "Income" ? "text-emerald-700" : "text-slate-700",
-                  )}
-                >
-                  {row.source}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "max-w-[8rem] truncate px-2 py-1.5 text-[11px]",
-                    ACTIVITY_ROW_HOVER_CELL_MIDDLE,
-                    row.flow === "Income" ? "text-emerald-700" : "text-slate-500",
-                  )}
-                >
-                  {!row.appliedToKey || row.category === "Unassigned" ? (
-                    <span className="inline-flex items-center rounded-full border border-amber-200/90 bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800/80">
-                      Unassigned
-                    </span>
-                  ) : (
-                    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                      {row.appliedToKey.startsWith("living:")
-                        ? renderAssignToGlyph(row.appliedToKey)
-                        : renderCategoryGlyph(row.category, row.flow, SNAPSHOT_GLYPH_LOOKUP)}
-                      {row.fromStash && row.category === "Stash" ? (
-                        <>
-                          <span className="sr-only">Paid from My Stash</span>
-                          <span className="shrink-0 rounded border border-amber-200/90 bg-amber-50/95 px-1 py-px text-[8px] font-semibold uppercase tracking-wide text-amber-900/90">
-                            Stash
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="truncate">{row.category}</span>
-                          {row.fromStash ? (
-                            <>
-                              <span className="sr-only">Paid from My Stash</span>
-                              <Receipt className="h-3 w-3 shrink-0 stroke-[1.75] text-slate-600" aria-hidden />
-                              <span className="shrink-0 rounded border border-amber-200/90 bg-amber-50/95 px-1 py-px text-[8px] font-semibold uppercase tracking-wide text-amber-900/90">
-                                Stash
-                              </span>
-                            </>
-                          ) : null}
-                        </>
-                      )}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "px-2 py-1.5 text-right text-[11px] tabular-nums",
-                    ACTIVITY_ROW_HOVER_CELL_LAST,
-                    amountInter.className,
-                    row.flow === "Income"
-                      ? "text-emerald-700"
-                      : row.flow === "Transfer"
-                        ? "text-slate-500"
-                        : "text-slate-700",
-                  )}
-                >
-                  {row.flow === "Income" ? "+" : row.flow === "Transfer" ? "" : "-"}$
-                  {row.actual.toLocaleString()}
-                </TableCell>
               </TableRow>
-            ))}
+            ) : null}
+            {additionalUnassigned.map(renderActivityRow)}
           </TableBody>
         </Table>
         <div className="mt-auto border-t border-slate-100 pt-2 text-center">
           <p className="inline-flex items-baseline gap-1.5">
             <span className={`text-sm font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>
-              {rows.length}
+              {shownCount}
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               of {totalCount} transactions this month

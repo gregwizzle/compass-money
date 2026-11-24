@@ -168,6 +168,8 @@ const MONTH_ACTIVITY: LogTxn[] = [
   { id: "c3", day: 15, merchant: "Local Cafe", amount: 16, categoryId: "dining" },
   { id: "c4", day: 14, merchant: "Pharmacy", amount: 22, categoryId: "personal" },
   { id: "c5", day: 11, merchant: "Concert tickets", amount: 80, categoryId: "vibe" },
+  { id: "u4", day: 10, merchant: "Hardware Store", amount: 27, categoryId: null },
+  { id: "u5", day: 10, merchant: "Bookstore", amount: 18, categoryId: null },
   { id: "c6", day: 9, merchant: "Whole Foods", amount: 91, categoryId: "groceries" },
   { id: "c7", day: 7, merchant: "Pizza night", amount: 28, categoryId: "dining" },
   { id: "c8", day: 4, merchant: "Target", amount: 19, categoryId: "vibe" },
@@ -710,6 +712,9 @@ export function LogbookWorkspace() {
       accountLabel: "Linked Checking",
     }
   })
+  const activeRecentRows = recentRows.filter(
+    (row) => !row.fromStash && row.budgetMonthLabel === selectedMonth,
+  )
 
   const incomeLines = incomeForMonth(selectedMonth)
   const incomeTotal = incomeLines.reduce((sum, line) => sum + line.amount, 0)
@@ -897,17 +902,17 @@ export function LogbookWorkspace() {
               onSelectBill={cardModals.openBill}
               onSelectLivingLine={cardModals.openLiving}
               onOpenCashoutInfo={cardModals.openCashoutInfo}
+              onOpenBudget={() => setActiveTab("plan")}
             />
             <div className="flex min-w-0 flex-col gap-4">
               <TimelineCreditPaymentsCard
                 selectedMonth={selectedMonth}
-                onAbout={cardModals.openCreditAbout}
                 onSelectCycle={cardModals.openCreditCycle}
               />
               <TimelineRecentActivityCard
                 selectedMonth={selectedMonth}
-                rows={recentRows.slice(0, 14)}
-                totalCount={recentRows.length}
+                rows={activeRecentRows}
+                totalCount={activeRecentRows.length}
                 onOpenFullMonth={() => setActiveTab("activity")}
                 onSelectRow={cardModals.openActivity}
               />
@@ -1003,14 +1008,7 @@ export function LogbookWorkspace() {
                               className="h-3.5 w-3.5 shrink-0 stroke-[1.5] text-slate-500"
                               aria-hidden
                             />
-                          ) : (
-                            <span
-                              className="inline-flex w-3.5 justify-center text-[13px] leading-none text-slate-500"
-                              aria-hidden
-                            >
-                              ⚡
-                            </span>
-                          )}
+                          ) : null}
                           <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
                             {line.name}
                           </span>
@@ -1272,7 +1270,7 @@ export function LogbookWorkspace() {
                 return (
                   <Leader
                     key={line.id}
-                    left={line.id === "curveballs" ? "⚡ Curveballs" : line.shortName}
+                    left={line.shortName}
                     meta={remaining < 0 ? "overage stays in liability" : "unspent returns in the sweep"}
                     right={remaining < 0 ? `${fmtDollars(Math.abs(remaining))} Over` : `${fmtDollars(remaining)} Sweep`}
                     rightClassName={remaining < 0 ? "text-sm text-rose-600" : "text-sm text-slate-700"}

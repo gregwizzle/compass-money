@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
-import { AlertTriangle, Check, ChevronsUpDown, CirclePlus, FileText, Lock, Receipt, Zap } from "lucide-react"
+import { Check, ChevronsUpDown, CirclePlus, FileText, Lock, Receipt } from "lucide-react"
 import { CATEGORY_GLYPH } from "@/components/roadmap-categories-grid"
 import { DottedLeaderRow } from "@/components/dotted-leader-row"
 import { SettleUpModal } from "@/components/settle-up-modal"
@@ -203,13 +203,6 @@ function renderCategoryGlyph(
 function renderAssignGlyph(appliedKey: string, livingLines: SnapshotLivingLine[]) {
   if (appliedKey.startsWith("living:")) {
     const id = appliedKey.slice("living:".length)
-    if (id === "curveballs") {
-      return (
-        <span className="inline-flex w-4 justify-center text-[13px] leading-none" aria-hidden>
-          ⚡
-        </span>
-      )
-    }
     const glyph = LIVING_GLYPH[id]
     if (glyph) {
       return <glyph.Icon className={cn("h-4 w-4 shrink-0 stroke-[1.5]", glyph.className)} aria-hidden />
@@ -239,7 +232,6 @@ export function useLogbookCardModals({
   const [selectedLivingLine, setSelectedLivingLine] = useState<SnapshotLivingLine | null>(null)
   const [cashoutInfoOpen, setCashoutInfoOpen] = useState(false)
   const [settleUpOpen, setSettleUpOpen] = useState(false)
-  const [creditAboutOpen, setCreditAboutOpen] = useState(false)
   const [selectedCreditCycleId, setSelectedCreditCycleId] = useState<string | null>(null)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [activityFundedByDraft, setActivityFundedByDraft] = useState<FundedBySlot>("current")
@@ -473,7 +465,7 @@ export function useLogbookCardModals({
                       <span>
                         − {line.label} <span className="text-slate-500">(overage)</span>
                       </span>
-                      {glyph ? <glyph.Icon className={cn("h-3.5 w-3.5 shrink-0 stroke-[1.5]", glyph.className)} aria-hidden /> : line.id === "curveballs" ? <span aria-hidden>⚡</span> : null}
+                      {glyph ? <glyph.Icon className={cn("h-3.5 w-3.5 shrink-0 stroke-[1.5]", glyph.className)} aria-hidden /> : null}
                     </span>
                     <span className="shrink-0 tabular-nums text-slate-700">−{fmtDollars(line.overage)}</span>
                   </div>
@@ -510,46 +502,6 @@ export function useLogbookCardModals({
               difference from your Stash, or you will end up with some long-term debt.
             </p>
           ) : null}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={creditAboutOpen} onOpenChange={setCreditAboutOpen}>
-        <DialogContent className="font-sans sm:max-w-[560px]">
-          <DialogHeader>
-            <DialogTitle>About Credit Card Payments</DialogTitle>
-          </DialogHeader>
-          <section className="rounded-lg border border-slate-200 bg-slate-50/40 p-4 sm:p-5">
-            <div className="space-y-3">
-              <p className="text-[12px] leading-relaxed text-slate-600">
-                Each card row represents a <span className="font-semibold">closed statement cycle</span>. The due date
-                is when the issuer expects payment.
-              </p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-emerald-500/10 text-emerald-700">
-                    <Zap className="h-4 w-4" aria-hidden />
-                  </span>
-                  <p className="text-[12px] font-semibold text-slate-800">Payment Ready</p>
-                </div>
-                <p className="text-[12px] leading-relaxed text-slate-600">
-                  Reserved funds cover the issuer&apos;s minimum due for this cycle.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-amber-500/10 text-amber-700">
-                    <AlertTriangle className="h-4 w-4" aria-hidden />
-                  </span>
-                  <p className="text-[12px] font-semibold text-slate-800">Minimum Due / Action Needed</p>
-                </div>
-                <p className="text-[12px] leading-relaxed text-slate-600">
-                  Reserved funds do not fully cover the minimum due yet. Choose how to fund the remaining amount in
-                  the modal.
-                </p>
-              </div>
-              <p className="text-[11px] leading-relaxed text-slate-500">Tip: click any card to manage funding for that cycle.</p>
-            </div>
-          </section>
         </DialogContent>
       </Dialog>
 
@@ -843,7 +795,6 @@ export function useLogbookCardModals({
     openLiving: setSelectedLivingLine,
     openCashoutInfo: () => setCashoutInfoOpen(true),
     openSettleUp: () => setSettleUpOpen(true),
-    openCreditAbout: () => setCreditAboutOpen(true),
     openCreditCycle: setSelectedCreditCycleId,
     openActivity: setSelectedActivityId,
     dialogs,
