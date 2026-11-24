@@ -16,8 +16,8 @@ import {
 import { cn } from "@/lib/utils"
 
 type HeaderYearControlProps = {
-  /** Compact single-line `2026 ▾` for Logbook month strip. */
-  variant?: "default" | "compact"
+  /** Compact single-line `2026 ▾` for Logbook month strip. `archives` = Archives ⌄ only. */
+  variant?: "default" | "compact" | "archives"
 }
 
 export function HeaderYearControl({ variant = "default" }: HeaderYearControlProps) {
@@ -101,7 +101,7 @@ export function HeaderYearControl({ variant = "default" }: HeaderYearControlProp
     </DropdownMenuContent>
   )
 
-  if (variant === "compact") {
+  if (variant === "compact" || variant === "archives") {
     return (
       <div
         className="flex shrink-0 items-center gap-1 font-sans"
@@ -123,13 +123,15 @@ export function HeaderYearControl({ variant = "default" }: HeaderYearControlProp
             <button
               type="button"
               className={cn(
-                "inline-flex cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-1 text-sm font-semibold tabular-nums text-slate-700",
-                "outline-none transition-colors hover:bg-stone-100 hover:text-slate-900",
+                "inline-flex cursor-pointer items-center gap-0.5 rounded-md px-1.5 py-1 outline-none transition-colors",
                 "focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1",
+                variant === "archives"
+                  ? "text-[10px] font-medium text-slate-500 hover:bg-stone-100 hover:text-slate-700"
+                  : "text-sm font-semibold tabular-nums text-slate-700 hover:bg-stone-100 hover:text-slate-900",
               )}
               aria-label="Open budget year archives"
             >
-              {displayYear}
+              {variant === "archives" ? "Archives" : displayYear}
               <ChevronDown className="size-3.5 shrink-0 opacity-70" aria-hidden />
             </button>
           </DropdownMenuTrigger>

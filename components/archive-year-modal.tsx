@@ -62,7 +62,7 @@ export function ArchiveYearModal({
                 Carry forward your blueprint
               </h4>
               <p className="mt-1 text-sm text-slate-600">
-                Recurring bills, living funds, and income from your Roadmap roll
+                Recurring bills, living funds, and income from your Bills &amp; Income page roll
                 into {nextYear} so you don&apos;t rebuild from scratch.
                 <span className="mt-1.5 block text-[13px] italic text-slate-500">
                   (One-time purchases stay with {year} only.)

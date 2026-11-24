@@ -39,14 +39,12 @@ import {
 } from "@/lib/budget-month"
 import {
   getSnapshotExpectedCashout,
-  getSnapshotLivingNetRemaining,
   partitionBillsByPaid,
   SNAPSHOT_ACTIVITY_ROWS,
   SNAPSHOT_AS_OF_DAY,
   SNAPSHOT_EXPECTED_INCOME,
   SNAPSHOT_GLYPH_LOOKUP,
   SNAPSHOT_LIVING,
-  SNAPSHOT_STARTING_FUNDS,
   SNAPSHOT_UPCOMING_PREVIEW,
   type SnapshotActivityRow,
   type SnapshotBill,
@@ -274,11 +272,6 @@ function daysUntilNextMonth(selectedMonth: MonthLabel) {
   return Math.max(0, Math.ceil((nextMonthFirst.getTime() - anchor.getTime()) / msPerDay))
 }
 
-function nextMonthName(selectedMonth: MonthLabel) {
-  const next = MONTH_LABELS[((monthIndexFromLabel(selectedMonth) ?? 0) + 1) % 12]
-  return next ? monthLongNameFromLabel(next) : "Next Month"
-}
-
 /** Default Timeline ledger: demo activity plus cleared income, newest first, first 14 rows. */
 export function buildTimelineActivityPreview(
   selectedMonth: MonthLabel,
@@ -319,44 +312,29 @@ function dueCyclesForMonth(selectedMonth: MonthLabel) {
 export function TimelineSnapshotCard({
   selectedMonth,
   cardRef,
-  isReadyToCashOut = false,
   livingLines,
-  unassignedSpent = 0,
   expectedNet: expectedNetOverride,
   onSelectBill,
   onSelectLivingLine,
   onOpenCashoutInfo,
-  onCashOut,
 }: {
   selectedMonth: MonthLabel
   cardRef?: Ref<HTMLElement>
-  isReadyToCashOut?: boolean
   /** Logbook living funds, including Curveballs. Falls back to the Timeline demo lines. */
   livingLines?: SnapshotLivingLine[]
-  /** Virtual row only. Not a stored category. */
-  unassignedSpent?: number
   expectedNet?: number
   onSelectBill?: (bill: SnapshotBill) => void
   onSelectLivingLine?: (line: SnapshotLivingLine) => void
   onOpenCashoutInfo?: () => void
-  onCashOut?: () => void
 }) {
-  const { paid, upcoming, paidTotal } = partitionBillsByPaid(SNAPSHOT_AS_OF_DAY)
+  const { upcoming } = partitionBillsByPaid(SNAPSHOT_AS_OF_DAY)
   const snapshotMath = getSnapshotExpectedCashout()
   const lines = livingLines ?? SNAPSHOT_LIVING
-  const livingBudget = lines.reduce((sum, line) => sum + line.target, 0)
-  const livingNetRemaining = livingLines
-    ? lines.reduce((sum, line) => sum + (line.target - line.spent), 0)
-    : getSnapshotLivingNetRemaining()
   const expectedNet = expectedNetOverride ?? snapshotMath.expectedNet
-  const billsTotal = snapshotMath.billsTotal
-  const billsUpcomingTotal = upcoming.reduce((sum, bill) => sum + bill.amount, 0)
   const upcomingPreview = upcoming.slice(0, SNAPSHOT_UPCOMING_PREVIEW)
   const upcomingRest = Math.max(0, upcoming.length - SNAPSHOT_UPCOMING_PREVIEW)
-  const paidCount = paid.length
   const monthName = monthLongNameFromLabel(selectedMonth)
   const countdown = daysUntilNextMonth(selectedMonth)
-  const advanceLabel = nextMonthName(selectedMonth)
 
   return (
     <section
@@ -371,78 +349,21 @@ export function TimelineSnapshotCard({
             className={cn(CARD_TITLE, "flex min-w-0 flex-1 items-center gap-2")}
           >
             <Camera className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
-            <span className="min-w-0 truncate">{monthName} Snapshot</span>
+            <span className="min-w-0 truncate">Snapshot</span>
           </h2>
           <Link
             href={`/roadmap?month=${selectedMonth}`}
             className="ml-auto inline-flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-[#0087D2] underline-offset-2 hover:underline"
           >
-            <span>{monthName} Roadmap</span>
+            <span>{monthName} Bills &amp; Income</span>
             <Maximize2 className="h-3.5 w-3.5 shrink-0 stroke-[2] text-[#0087D2]" aria-hidden />
           </Link>
         </div>
       </header>
       <div className="relative z-10 min-w-0 space-y-4 p-3">
-        <div className="flex justify-center pr-1.5 sm:pr-2">
-          <p className="inline-flex flex-wrap items-baseline justify-center gap-2">
-            <span className="text-[15px] font-medium italic text-slate-500">Starting Funds</span>
-            <span
-              className={`text-[1.05rem] font-semibold leading-none tabular-nums text-slate-700 ${amountInter.className}`}
-            >
-              {fmtCurrencyPlain(SNAPSHOT_STARTING_FUNDS)}
-            </span>
-            <span className={`ml-1 text-xl font-semibold italic text-orange-700/90 ${myJourneyNav.className}`}>
-              Let&apos;s do this
-            </span>
-          </p>
-        </div>
-
         <div className="px-2.5 sm:px-3">
-          <div className="mb-2 flex min-w-0 items-baseline justify-between gap-2 border-b border-slate-200 pb-2">
-            <h3 className="shrink-0 text-[12px] font-semibold text-slate-700">Bills</h3>
-            <div className="inline-flex min-w-0 max-w-full shrink-0 items-baseline justify-end gap-3 whitespace-nowrap text-right text-[11px] text-slate-500 sm:gap-4">
-              <span className={`font-medium tabular-nums text-slate-500 ${amountInter.className}`}>
-                <span className="sr-only">{fmtDollars(billsTotal)} total reserved for bills. </span>
-                {fmtDollars(billsTotal)} Total Reserved
-                <span className="pl-2 font-normal text-slate-300 sm:pl-2.5" aria-hidden>
-                  |
-                </span>
-              </span>
-              <div>
-                <span className="sr-only">Still due on upcoming bills: </span>
-                <span className="inline-flex items-baseline justify-end pr-0.5 tabular-nums">
-                  <span
-                    className={`text-right text-[11px] font-medium tabular-nums text-slate-500 ${amountInter.className}`}
-                  >
-                    {fmtDollars(billsUpcomingTotal)}
-                  </span>
-                  <span className="w-[2.25rem] text-right text-[11px] font-medium text-slate-500">Left</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="mb-2 pl-3 sm:pl-4">
-            <p className="inline-flex w-full items-baseline gap-1 text-[11px] text-slate-600">
-              <span className="font-medium">{monthName}</span>
-              <span
-                className="min-h-[1em] min-w-[1.5rem] flex-1 bg-[radial-gradient(circle,_currentColor_0.85px,_transparent_1.2px)] bg-[length:6px_3px] bg-repeat-x bg-bottom text-slate-300"
-                aria-hidden
-              />
-              <span className="font-medium italic tabular-nums">{paidCount} Bills Paid</span>
-              <span
-                className="min-h-[1em] min-w-[1.5rem] flex-1 bg-[radial-gradient(circle,_currentColor_0.85px,_transparent_1.2px)] bg-[length:6px_3px] bg-repeat-x bg-bottom text-slate-300"
-                aria-hidden
-              />
-              <span className="inline-flex items-baseline gap-1.5 italic">
-                <span className="font-medium text-slate-600">Total</span>
-                <span className={`font-medium tabular-nums text-slate-500 ${amountInter.className}`}>
-                  {fmtDollars(paidTotal)}
-                </span>
-              </span>
-              <span className="inline-flex w-[2.25rem] justify-center" aria-hidden>
-                <ReceivedCheckIcon />
-              </span>
-            </p>
+          <div className="mb-2 border-b border-slate-200 pb-2">
+            <h3 className="text-[12px] font-semibold text-slate-700">Upcoming Bills</h3>
           </div>
           <ul className="space-y-2 pl-3 sm:pl-4">
             {upcomingPreview.map((bill) => (
@@ -496,10 +417,11 @@ export function TimelineSnapshotCard({
           </ul>
           {upcomingRest > 0 ? (
             <div className="mt-1 pl-3 sm:pl-4">
-              <span className="inline-flex min-w-0 items-baseline gap-1.5">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
                 <span className="w-[1.5rem] shrink-0" aria-hidden />
-                <span className="text-left text-[10px] font-medium italic tracking-wide text-[#0087D2]">
-                  {upcomingRest} more upcoming . . .
+                <span className="inline-flex items-center gap-0.5 text-left text-[10px] font-medium italic tracking-wide text-[#0087D2]">
+                  {upcomingRest} more this month
+                  <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
                 </span>
               </span>
             </div>
@@ -509,35 +431,9 @@ export function TimelineSnapshotCard({
         <div className="px-2.5 sm:px-3">
           <div className="mb-2 flex min-w-0 items-baseline justify-between gap-2 border-b border-slate-200 pb-2">
             <h3 className="shrink-0 text-[12px] font-semibold text-slate-700">Living Funds</h3>
-            <div className="inline-flex min-w-0 max-w-full shrink-0 items-baseline justify-end gap-3 whitespace-nowrap text-right text-[11px] text-slate-500 sm:gap-4">
-              <span className={`font-medium tabular-nums text-slate-500 ${amountInter.className}`}>
-                <span className="sr-only">{fmtDollars(livingBudget)} total funded. </span>
-                {fmtDollars(livingBudget)} Total Funded
-                <span className="pl-2 font-normal text-slate-300 sm:pl-2.5" aria-hidden>
-                  |
-                </span>
-              </span>
-              <div>
-                <span className="sr-only">Net remaining across categories: </span>
-                {livingNetRemaining < 0 ? (
-                  <span className="inline-flex items-baseline justify-end pr-0.5 tabular-nums">
-                    <span className={`text-right text-[11px] font-semibold text-rose-700 ${amountInter.className}`}>
-                      {fmtDollars(Math.abs(livingNetRemaining))}
-                    </span>
-                    <span className="w-[2.25rem] text-right text-[11px] font-semibold text-rose-700">Over</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-baseline justify-end pr-0.5 tabular-nums">
-                    <span
-                      className={`text-right text-[11px] font-medium tabular-nums text-slate-500 ${amountInter.className}`}
-                    >
-                      {fmtDollars(livingNetRemaining)}
-                    </span>
-                    <span className="w-[2.25rem] text-right text-[11px] font-medium text-slate-500">Left</span>
-                  </span>
-                )}
-              </div>
-            </div>
+            <span className="shrink-0 text-right text-[11px] font-medium text-slate-500">
+              Remaining Funds
+            </span>
           </div>
           <div className="space-y-2.5 pl-3 sm:pl-4">
             {lines.map((line) => {
@@ -575,18 +471,7 @@ export function TimelineSnapshotCard({
                             ⚡
                           </span>
                         ) : null}
-                        <span className="grid w-[18rem] min-w-0 grid-cols-[max-content_1fr_max-content] items-baseline gap-x-0.5">
-                          <span className="whitespace-nowrap">{line.shortName}</span>
-                          <span
-                            className="min-h-[1em] min-w-[1rem] bg-[radial-gradient(circle,_currentColor_0.85px,_transparent_1.2px)] bg-[length:6px_3px] bg-repeat-x bg-bottom text-slate-300"
-                            aria-hidden
-                          />
-                          <span
-                            className={`shrink-0 text-right font-medium tabular-nums text-slate-500 ${amountInter.className}`}
-                          >
-                            ({fmtDollars(line.target)})
-                          </span>
-                        </span>
+                        <span className="whitespace-nowrap">{line.shortName}</span>
                       </span>
                     }
                     right={
@@ -610,25 +495,6 @@ export function TimelineSnapshotCard({
                 </div>
               )
             })}
-            {unassignedSpent > 0 ? (
-              <div className="rounded-md bg-amber-50/80 px-1 py-0.5">
-                <DottedLeaderRow
-                  left={
-                    <span className="inline-flex items-baseline gap-1.5 text-rose-700">
-                      <span className="inline-flex w-[1.5rem] shrink-0 justify-center" aria-hidden>
-                        !
-                      </span>
-                      <span>Unassigned</span>
-                    </span>
-                  }
-                  right={
-                    <span className={`text-right text-[11px] font-semibold text-rose-700 ${amountInter.className}`}>
-                      {fmtDollars(unassignedSpent)}
-                    </span>
-                  }
-                />
-              </div>
-            ) : null}
           </div>
         </div>
 
@@ -667,43 +533,6 @@ export function TimelineSnapshotCard({
               </span>
               <Receipt className="ml-1 h-4 w-4 shrink-0 stroke-[1.7] text-orange-700/80" aria-hidden />
             </p>
-          </div>
-          <div className="mt-3 flex justify-center">
-            <button
-              type="button"
-              onClick={() => onCashOut?.()}
-              className={`group inline-flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg px-5 py-2 shadow-sm transition-colors duration-150 ${
-                isReadyToCashOut
-                  ? "bg-[#0087D2] text-white hover:bg-[#00487A] active:bg-[#00365D]"
-                  : "border border-slate-200/80 border-l-slate-200 bg-gradient-to-b from-slate-200 to-slate-200 text-slate-400 hover:border-slate-300/90 hover:from-sky-50 hover:to-sky-100 group-hover:text-slate-600"
-              }`}
-            >
-              <span className="inline-flex items-center justify-center gap-2">
-                <span className="text-[12px] font-bold uppercase tracking-wide">Cash Out {monthName}</span>
-                <span
-                  className={`pb-px text-[17px] font-black leading-none transition-colors duration-150 ${
-                    isReadyToCashOut
-                      ? "text-amber-400 group-hover:text-amber-200"
-                      : "text-slate-300 group-hover:text-slate-500"
-                  }`}
-                  aria-hidden
-                >
-                  &raquo;
-                </span>
-                <span
-                  className={`text-[15px] font-medium italic leading-tight transition-colors duration-150 ${myJourneyNav.className} ${
-                    isReadyToCashOut ? "text-white group-hover:text-white" : "text-slate-500 group-hover:text-slate-700"
-                  }`}
-                >
-                  Advance to {advanceLabel}
-                </span>
-              </span>
-              {!isReadyToCashOut ? (
-                <span className="text-[10px] font-medium italic leading-tight text-slate-500 transition-colors duration-150 group-hover:text-slate-600">
-                  Unlocks on {advanceLabel} 1st
-                </span>
-              ) : null}
-            </button>
           </div>
         </div>
       </div>
@@ -851,7 +680,7 @@ export function TimelineCreditPaymentsCard({
 }
 
 export function TimelineRecentActivityCard({
-  selectedMonth,
+  selectedMonth: _selectedMonth,
   rows,
   totalCount,
   minHeight,
@@ -865,8 +694,6 @@ export function TimelineRecentActivityCard({
   onOpenFullMonth?: () => void
   onSelectRow?: (rowId: string) => void
 }) {
-  const monthName = monthLongNameFromLabel(selectedMonth)
-
   return (
     <section
       className={cn(
@@ -890,7 +717,7 @@ export function TimelineRecentActivityCard({
             onClick={() => onOpenFullMonth?.()}
             className="ml-auto inline-flex max-w-[min(100%,14rem)] shrink-0 cursor-pointer items-center gap-1 text-right text-[10px] font-semibold leading-snug text-[#0087D2] underline-offset-2 hover:underline sm:max-w-none"
           >
-            <span className="leading-snug">Full {monthName} Activity</span>
+            <span className="leading-snug">Full Activity</span>
             <Maximize2 className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
           </button>
         </div>

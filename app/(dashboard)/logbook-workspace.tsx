@@ -1,21 +1,30 @@
 "use client"
 
-import { Suspense, useMemo, useState, type ReactNode } from "react"
-import { ChevronsRight, RefreshCw } from "lucide-react"
-import { HeaderYearControl } from "@/components/header-year-control"
+import { useMemo, useState, type ReactNode } from "react"
+import { BookOpen, ChevronsRight, Lock, RefreshCw, Star } from "lucide-react"
 import { ReceivedCheckIcon } from "@/components/received-check-icon"
+import { TimelineIncomeTankCard } from "@/components/timeline-income-tank-card"
 import {
   TimelineCreditPaymentsCard,
   TimelineRecentActivityCard,
   TimelineSnapshotCard,
 } from "@/components/timeline-snapshot-cards"
 import { useLogbookCardModals, type LogbookActivitySave } from "@/components/logbook-timeline-modals"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { YearForecastPanel } from "@/components/year-forecast-panel"
 import { useMonthSelection } from "@/hooks/use-month-selection"
 import {
   DEFAULT_BUDGET_YEAR,
   MONTH_LABELS,
   getMonthStripFlags,
   monthIndexFromLabel,
+  monthLongNameFromIndex,
   monthLongNameFromLabel,
   type MonthLabel,
 } from "@/lib/budget-month"
@@ -28,9 +37,10 @@ import {
   type SnapshotLivingLine,
 } from "@/lib/snapshot-demo-data"
 import { SNAPSHOT_LIVING_GLYPH } from "@/lib/snapshot-living-glyphs"
+import { myJourneyNav } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 
-type LogbookTab = "snapshot" | "plan" | "activity" | "cashout"
+type LogbookTab = "snapshot" | "plan" | "activity" | "cashout" | "income-tank"
 type BillStatus = "paid" | "autodraft" | "pay" | "pending"
 
 type CreditCycle = {
@@ -65,8 +75,8 @@ type IncomeLine = {
 }
 
 const TABS: { id: LogbookTab; label: string }[] = [
-  { id: "snapshot", label: "Snapshot" },
-  { id: "plan", label: "Plan" },
+  { id: "snapshot", label: "Now" },
+  { id: "plan", label: "Budget" },
   { id: "activity", label: "Activity" },
   { id: "cashout", label: "Cashout" },
 ]
@@ -362,48 +372,81 @@ function CategorySelect({
 
 function AnnualMonthGauge({
   selectedMonth,
-  onSelect,
+  allYearSelected,
+  onSelectMonth,
+  onSelectAllYear,
   budgetYear = DEFAULT_BUDGET_YEAR,
 }: {
   selectedMonth: MonthLabel
-  onSelect: (month: MonthLabel) => void
+  allYearSelected: boolean
+  onSelectMonth: (month: MonthLabel) => void
+  onSelectAllYear: () => void
   budgetYear?: number
 }) {
   return (
     <div
-      className="flex w-full min-w-0 items-center justify-between gap-0.5"
+      className="flex w-full min-w-0 items-center justify-end gap-0.5 bg-transparent font-sans"
       role="navigation"
-      aria-label="Annual month gauge"
+      aria-label="Time scope"
     >
       {MONTH_LABELS.map((month, monthIndex) => {
         const flags = getMonthStripFlags(monthIndex, { budgetYear })
-        const isSelected = selectedMonth === month
+        const isSelected = !allYearSelected && selectedMonth === month
         const tooltip = `${monthLongNameFromLabel(month)} · ${monthGaugeStatusLabel(flags)}`
         return (
           <button
             key={month}
             type="button"
-            onClick={() => onSelect(month)}
+            onClick={() => onSelectMonth(month)}
             title={tooltip}
             aria-label={tooltip}
             aria-pressed={isSelected}
             className={cn(
-              "min-w-0 flex-1 cursor-pointer border-b-2 px-0.5 pb-1 text-center text-[11px] tracking-tight transition-colors",
-              flags.isArchived ? "border-emerald-500/60" : flags.isLive ? "border-orange-700/90" : "border-slate-200",
-              flags.isArchived && "italic",
+              "shrink-0 cursor-pointer rounded-[2px] border px-2 py-1 text-[13px] font-medium transition-colors",
               isSelected
-                ? "font-semibold uppercase text-[#0087D2]"
-                : flags.isArchived
-                  ? "font-medium text-emerald-700/80 hover:text-emerald-800"
-                  : flags.isLive
-                    ? "font-semibold text-orange-700/90 hover:text-orange-800"
-                    : "font-medium text-slate-400 hover:text-slate-600",
+                ? "border-[#0087D2] bg-sky-100/80 font-semibold text-slate-900"
+                : flags.isLive
+                  ? "border-transparent bg-transparent text-slate-800 hover:bg-stone-200/60"
+                  : flags.isFuture
+                    ? "border-transparent bg-transparent text-slate-700 hover:bg-stone-200/60"
+                    : "border-transparent bg-transparent text-slate-400 hover:bg-stone-200/60 hover:text-slate-600",
             )}
           >
-            {isSelected ? month.toUpperCase() : month}
+            <span className="inline-flex items-center justify-center">
+              {flags.isArchived ? (
+                <Lock
+                  className="mr-1 h-2.5 w-2.5 shrink-0 opacity-75"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              ) : null}
+              {flags.isLive ? (
+                <Star
+                  className="mr-1 h-[11px] w-[11px] shrink-0 fill-amber-500 text-amber-500"
+                  aria-hidden
+                />
+              ) : null}
+              <span>{month}</span>
+            </span>
           </button>
         )
       })}
+      <span className="mx-1 h-3.5 w-px shrink-0 bg-stone-300" aria-hidden />
+      <button
+        type="button"
+        onClick={onSelectAllYear}
+        title={`All ${budgetYear}`}
+        aria-label={`All ${budgetYear} forecast`}
+        aria-pressed={allYearSelected}
+        className={cn(
+          "shrink-0 cursor-pointer rounded-[2px] border px-2 py-1 text-[13px] font-medium transition-colors",
+          allYearSelected
+            ? "border-[#0087D2] bg-sky-100/80 font-semibold text-slate-900"
+            : "border-transparent bg-transparent text-slate-600 hover:bg-stone-200/60",
+        )}
+      >
+        All {budgetYear}
+      </button>
     </div>
   )
 }
@@ -439,138 +482,42 @@ function BillStatusGutter({ status }: { status: BillStatus }) {
   )
 }
 
-function LivingRows({
-  lines,
-  unassignedSpent = 0,
-  onBudgetChange,
-}: {
-  lines: SnapshotLivingLine[]
-  unassignedSpent?: number
-  onBudgetChange?: (id: string, budgeted: number) => void
-}) {
-  return (
-    <div className="space-y-1">
-      {lines.map((line) => {
-        const remaining = line.target - line.spent
-        const isOver = remaining < 0
-        const liability = Math.max(line.target, line.spent)
-        const glyph = SNAPSHOT_LIVING_GLYPH[line.id]
-        const Icon = glyph?.Icon
-        return (
-          <div key={line.id} className="flex items-center py-0.5 text-sm">
-            <div className="flex shrink-0 items-center gap-2 text-slate-800">
-              {Icon ? (
-                <Icon className={cn("h-3.5 w-3.5 shrink-0 stroke-[1.5]", glyph.className)} aria-hidden />
-              ) : line.id === "curveballs" ? (
-                <span className="inline-flex w-3.5 justify-center text-[13px] leading-none" aria-hidden>
-                  ⚡
-                </span>
-              ) : null}
-              <span className="whitespace-nowrap">{line.shortName}</span>
-            </div>
-            {onBudgetChange ? (
-              <input
-                type="number"
-                min={0}
-                step={1}
-                inputMode="numeric"
-                aria-label={`${line.name} budget`}
-                value={line.target}
-                onChange={(event) =>
-                  onBudgetChange(line.id, Math.max(0, Number(event.target.value) || 0))
-                }
-                className="ml-2 w-16 shrink-0 rounded-[2px] border border-slate-200 bg-white px-1 text-right font-mono text-xs tabular-nums text-slate-800 outline-none"
-              />
-            ) : null}
-            <span className="mx-2.5 min-w-[0.75rem] flex-1 border-b border-dotted border-slate-300" aria-hidden />
-            <span
-              className={cn(
-                "whitespace-nowrap text-right font-mono text-xs tabular-nums",
-                isOver ? "font-semibold text-rose-600" : "text-slate-400",
-              )}
-            >
-              {isOver ? `${fmtDollars(Math.abs(remaining))} Over` : `${fmtDollars(remaining)} Left`}
-            </span>
-            <span className="mx-2.5 w-8 shrink-0 border-b border-dotted border-slate-300" aria-hidden />
-            <span className="w-14 shrink-0 text-right font-mono text-sm tabular-nums text-slate-800">
-              {fmtDollars(liability)}
-            </span>
-          </div>
-        )
-      })}
-      {unassignedSpent > 0 ? (
-        <div className="flex items-center py-0.5 text-sm">
-          <div className="flex shrink-0 items-center gap-2 text-rose-700">
-            <span className="inline-flex w-3.5 justify-center font-semibold" aria-hidden>
-              !
-            </span>
-            <span className="whitespace-nowrap">Unassigned</span>
-          </div>
-          <span className="mx-2.5 min-w-[0.75rem] flex-1 border-b border-dotted border-slate-300" aria-hidden />
-          <span className="w-14 shrink-0 text-right font-mono text-sm tabular-nums text-rose-700">
-            {fmtDollars(unassignedSpent)}
-          </span>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function IncomeDock({
-  monthName,
-  nextMonthLabel,
-  lines,
-}: {
-  monthName: string
-  nextMonthLabel: string
-  lines: IncomeLine[]
-}) {
-  const total = lines.reduce((sum, line) => sum + line.amount, 0)
-  return (
-    <article className={CARD_CLASS} aria-label="Income Dock">
-      <div className={SECTION_RULE}>
-        <h3 className="text-sm font-bold text-slate-900">Income Dock</h3>
-        <span className="text-xs italic text-slate-400">
-          {monthName} paychecks staged for {nextMonthLabel}
-        </span>
-      </div>
-      <div className="space-y-0.5">
-        {lines.map((line) => (
-          <Leader
-            key={line.id}
-            left={
-              <span className="inline-flex items-center gap-1.5">
-                {line.cleared ? <ReceivedCheckIcon className="h-3.5 w-3.5" /> : null}
-                {line.label}
-              </span>
-            }
-            meta={line.cleared ? line.expectedDate : `${line.expectedDate} · pending`}
-            right={fmtDollars(line.amount)}
-            rightClassName="text-sm text-slate-800"
-          />
-        ))}
-      </div>
-      <div className="mt-3 flex items-baseline justify-between border-t border-slate-100 pt-2">
-        <span className="text-xs italic text-slate-500">{nextMonthLabel} Starting Funds</span>
-        <span className="font-mono text-sm font-bold tabular-nums text-slate-900">{fmtDollars(total)}</span>
-      </div>
-    </article>
-  )
-}
-
 /**
  * Logbook inside the 1280px Surgical Cockpit.
  * Folder tabs stay on the canvas. Nothing on this page opens a drawer or modal.
  */
 export function LogbookWorkspace() {
   const { selectedMonth, setSelectedMonth } = useMonthSelection()
+  const [allYearSelected, setAllYearSelected] = useState(false)
   const [activeTab, setActiveTab] = useState<LogbookTab>("snapshot")
+
+  const selectMonth = (month: MonthLabel) => {
+    setSelectedMonth(month)
+    setAllYearSelected(false)
+    setActiveTab("snapshot")
+  }
+
+  const selectAllYear = () => {
+    setAllYearSelected(true)
+  }
   const [assignments, setAssignments] = useState<Record<string, string | null>>({})
   const [activityOverrides, setActivityOverrides] = useState<Record<string, LogbookActivitySave>>({})
   const [budgets, setBudgets] = useState<Record<string, number>>({})
   const [billsReviewed, setBillsReviewed] = useState(false)
   const [shortfallAck, setShortfallAck] = useState(false)
   const [lockNote, setLockNote] = useState<string | null>(null)
+  const [billPaidOverrides, setBillPaidOverrides] = useState<Record<string, boolean>>({})
+  const [billAmountOverrides, setBillAmountOverrides] = useState<Record<string, number>>({})
+  const [billDueOverrides, setBillDueOverrides] = useState<Record<string, number>>({})
+  const [billModeOverrides, setBillModeOverrides] = useState<
+    Record<string, SnapshotBill["paymentMode"]>
+  >({})
+  const [livingEditId, setLivingEditId] = useState<string | null>(null)
+  const [livingTargetDraft, setLivingTargetDraft] = useState("")
+  const [billEditId, setBillEditId] = useState<string | null>(null)
+  const [billAmountDraft, setBillAmountDraft] = useState("")
+  const [billDueDraft, setBillDueDraft] = useState("")
+  const [billRecurringDraft, setBillRecurringDraft] = useState(true)
 
   const monthName = monthLongNameFromLabel(selectedMonth)
   const monthAbbrev = selectedMonth
@@ -579,9 +526,17 @@ export function LogbookWorkspace() {
     budgetYear: DEFAULT_BUDGET_YEAR,
   })
   const isArchivedMonth = selectedMonthFlags.isArchived
+  const prevMonthLabel = monthLongNameFromIndex((selectedMonthIndex + 11) % 12)
   const nextMonthLabel = monthLongNameFromLabel(
     MONTH_LABELS[(selectedMonthIndex + 1) % 12] as MonthLabel,
   )
+  const daysToCashout = useMemo(() => {
+    const now = new Date()
+    const day = Math.min(now.getDate(), new Date(DEFAULT_BUDGET_YEAR, selectedMonthIndex + 1, 0).getDate())
+    const anchor = new Date(DEFAULT_BUDGET_YEAR, selectedMonthIndex, day)
+    const nextFirst = new Date(DEFAULT_BUDGET_YEAR, selectedMonthIndex + 1, 1)
+    return Math.max(0, Math.ceil((nextFirst.getTime() - anchor.getTime()) / (24 * 60 * 60 * 1000)))
+  }, [selectedMonthIndex])
 
   const assignCategory = (txnId: string, categoryId: string | null) => {
     setAssignments((current) => ({ ...current, [txnId]: categoryId }))
@@ -759,13 +714,84 @@ export function LogbookWorkspace() {
   const incomeLines = incomeForMonth(selectedMonth)
   const incomeTotal = incomeLines.reduce((sum, line) => sum + line.amount, 0)
 
+  const budgetBills = useMemo(() => {
+    return PLAN_BILLS.map((bill) => ({
+      ...bill,
+      amount: billAmountOverrides[bill.id] ?? bill.amount,
+      dueDay: billDueOverrides[bill.id] ?? bill.dueDay,
+      paymentMode: billModeOverrides[bill.id] ?? bill.paymentMode,
+    }))
+  }, [billAmountOverrides, billDueOverrides, billModeOverrides])
+
+  const budgetBillStatus = (bill: SnapshotBill): BillStatus => {
+    if (billPaidOverrides[bill.id] === true) return "paid"
+    if (billPaidOverrides[bill.id] === false) {
+      return bill.paymentMode === "manual" ? "pay" : "autodraft"
+    }
+    if (isArchivedMonth) return "paid"
+    return getBillStatus(bill, SNAPSHOT_AS_OF_DAY)
+  }
+
   const planBillTotals = useMemo(() => {
-    const unpaid = PLAN_BILLS.filter((bill) => getBillStatus(bill, SNAPSHOT_AS_OF_DAY) !== "paid")
+    const unpaid = budgetBills.filter((bill) => budgetBillStatus(bill) !== "paid")
     return {
-      total: PLAN_BILLS.reduce((sum, bill) => sum + bill.amount, 0),
+      total: budgetBills.reduce((sum, bill) => sum + bill.amount, 0),
       unpaid: unpaid.reduce((sum, bill) => sum + bill.amount, 0),
     }
-  }, [])
+  }, [budgetBills, billPaidOverrides, isArchivedMonth])
+
+  const unpaidBudgetBills = useMemo(
+    () =>
+      budgetBills
+        .filter((bill) => budgetBillStatus(bill) !== "paid")
+        .sort((a, b) => a.dueDay - b.dueDay || a.listName.localeCompare(b.listName)),
+    [budgetBills, billPaidOverrides, isArchivedMonth],
+  )
+  const paidBudgetBills = useMemo(
+    () =>
+      budgetBills
+        .filter((bill) => budgetBillStatus(bill) === "paid")
+        .sort((a, b) => a.dueDay - b.dueDay || a.listName.localeCompare(b.listName)),
+    [budgetBills, billPaidOverrides, isArchivedMonth],
+  )
+
+  const editingLiving = livingLines.find((line) => line.id === livingEditId) ?? null
+  const editingBill = budgetBills.find((bill) => bill.id === billEditId) ?? null
+
+  const openLivingEdit = (line: SnapshotLivingLine) => {
+    setLivingEditId(line.id)
+    setLivingTargetDraft(String(line.target))
+  }
+
+  const saveLivingEdit = () => {
+    if (!livingEditId) return
+    setLivingBudget(livingEditId, Math.max(0, Number(livingTargetDraft) || 0))
+    setLivingEditId(null)
+  }
+
+  const openBillEdit = (bill: SnapshotBill) => {
+    setBillEditId(bill.id)
+    setBillAmountDraft(String(bill.amount))
+    setBillDueDraft(String(bill.dueDay))
+    setBillRecurringDraft(bill.paymentMode === "autodraft")
+  }
+
+  const saveBillEdit = () => {
+    if (!billEditId) return
+    const amount = Math.max(0, Number(billAmountDraft) || 0)
+    const dueDay = Math.min(28, Math.max(1, Math.round(Number(billDueDraft) || 1)))
+    setBillAmountOverrides((current) => ({ ...current, [billEditId]: amount }))
+    setBillDueOverrides((current) => ({ ...current, [billEditId]: dueDay }))
+    setBillModeOverrides((current) => ({
+      ...current,
+      [billEditId]: billRecurringDraft ? "autodraft" : "manual",
+    }))
+    setBillEditId(null)
+  }
+
+  const toggleBillPaid = (billId: string, currentlyPaid: boolean) => {
+    setBillPaidOverrides((current) => ({ ...current, [billId]: !currentlyPaid }))
+  }
 
   const categorizationClear = uncategorized.length === 0
   const minimumsClear = tier1Short.length === 0 || shortfallAck
@@ -782,76 +808,95 @@ export function LogbookWorkspace() {
   })
 
   return (
-    <div className="bg-stone-100 px-4 pb-6 pt-3 font-mono text-slate-800">
+    <div className="bg-stone-100 px-4 pb-6 pt-7 font-mono text-slate-800">
       <header aria-labelledby="logbook-heading">
         <div className="flex items-end gap-6">
           <h1
             id="logbook-heading"
-            className="shrink-0 pb-1 font-sans text-2xl font-semibold leading-none tracking-[-0.02em] text-slate-600"
+            className="flex shrink-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
           >
-            Captain&apos;s Chair
+            <BookOpen className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
+            <span className="min-w-0 truncate">Captain&apos;s Chair</span>
           </h1>
-          <div className="flex min-w-0 flex-1 items-end gap-2">
-            <AnnualMonthGauge selectedMonth={selectedMonth} onSelect={setSelectedMonth} />
-            <Suspense
-              fallback={
-                <span className="shrink-0 px-1.5 pb-1 font-mono text-sm font-semibold tabular-nums text-slate-400">
-                  {DEFAULT_BUDGET_YEAR}
-                </span>
-              }
-            >
-              <HeaderYearControl variant="compact" />
-            </Suspense>
+          <div className="flex min-w-0 flex-1 items-end">
+            <AnnualMonthGauge
+              selectedMonth={selectedMonth}
+              allYearSelected={allYearSelected}
+              onSelectMonth={selectMonth}
+              onSelectAllYear={selectAllYear}
+            />
           </div>
         </div>
 
-        <div
-          className="mt-3 flex items-end gap-1 border-b border-slate-300"
-          role="tablist"
-          aria-label="Captain's Chair"
-        >
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id
-            return (
+        {!allYearSelected ? (
+          <div className="mt-3 flex items-end border-b border-[#0087D2]">
+            <span className="mr-5 pb-1.5 font-sans text-lg font-bold italic tracking-tight text-slate-600">
+              {monthName}
+            </span>
+            <div
+              className="flex min-w-0 items-end gap-1"
+              role="tablist"
+              aria-label="Captain's Chair"
+            >
+              {TABS.map((tab) => {
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "cursor-pointer px-3 py-1.5 font-sans text-sm font-medium",
+                      isActive
+                        ? "-mb-px rounded-t-[2px] border-x border-b border-t border-x-[#0087D2] border-b-stone-100 border-t-[#0087D2] bg-stone-100 font-semibold text-[#0087D2]"
+                        : tab.id === "cashout"
+                          ? "rounded-t-[2px] text-slate-600 hover:text-slate-900"
+                          : "rounded-t-[2px] text-slate-500 hover:text-slate-800",
+                    )}
+                  >
+                    {tab.id === "cashout" ? (
+                      <span className="inline-flex items-center gap-0.5">
+                        {`Cashout ${monthName}`}
+                        <ChevronsRight className="h-3.5 w-3.5 shrink-0 stroke-[2]" aria-hidden />
+                      </span>
+                    ) : (
+                      tab.label
+                    )}
+                  </button>
+                )
+              })}
               <button
-                key={tab.id}
                 type="button"
                 role="tab"
-                aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
+                aria-selected={activeTab === "income-tank"}
+                onClick={() => setActiveTab("income-tank")}
                 className={cn(
-                  "cursor-pointer px-3 py-1.5 font-sans text-sm font-medium",
-                  isActive
-                    ? "-mb-px rounded-t-[2px] border-x border-b border-t-2 border-x-slate-300 border-b-stone-100 border-t-[#0087D2] bg-stone-100 font-semibold text-slate-900"
-                    : "rounded-t-[2px] text-slate-500 hover:text-slate-800",
+                  "ml-3.5 cursor-pointer px-3 py-1.5 font-sans text-sm font-medium",
+                  activeTab === "income-tank"
+                    ? "-mb-px rounded-t-[2px] border-x border-b border-t border-x-[#0087D2] border-b-stone-100 border-t-[#0087D2] bg-stone-100 font-semibold text-emerald-700"
+                    : "rounded-t-[2px] text-emerald-700 hover:text-emerald-900",
                 )}
               >
-                {tab.id === "cashout" ? (
-                  <span className="inline-flex items-center gap-0.5">
-                    {`Cashout ${selectedMonth}`}
-                    <ChevronsRight className="h-3.5 w-3.5 shrink-0 stroke-[2]" aria-hidden />
-                  </span>
-                ) : (
-                  tab.label
-                )}
+                Income Dock
               </button>
-            )
-          })}
-        </div>
+            </div>
+          </div>
+        ) : null}
       </header>
 
-      <div className="pt-4" role="tabpanel">
-        {activeTab === "snapshot" ? (
+      <div className="pt-4" role={allYearSelected ? "region" : "tabpanel"}>
+        {allYearSelected ? <YearForecastPanel budgetYear={DEFAULT_BUDGET_YEAR} /> : null}
+        {!allYearSelected && activeTab === "snapshot" ? (
           <div className="grid grid-cols-2 items-start gap-4">
             <TimelineSnapshotCard
               selectedMonth={selectedMonth}
               livingLines={livingLines}
-              unassignedSpent={unassignedSpent}
               expectedNet={expectedNet}
               onSelectBill={cardModals.openBill}
               onSelectLivingLine={cardModals.openLiving}
               onOpenCashoutInfo={cardModals.openCashoutInfo}
-              onCashOut={cardModals.openSettleUp}
             />
             <div className="flex min-w-0 flex-col gap-4">
               <TimelineCreditPaymentsCard
@@ -870,76 +915,127 @@ export function LogbookWorkspace() {
           </div>
         ) : null}
 
-        {activeTab === "plan" ? (
-          <div className="grid grid-cols-2 items-start gap-4">
-            <div className="flex min-w-0 flex-col gap-4">
-              <article className={CARD_CLASS} aria-label="Living Funds">
-                <div className={SECTION_RULE}>
-                  <h3 className="text-sm font-bold text-slate-900">Living Funds</h3>
-                  <span className="font-mono text-xs tabular-nums text-slate-500">
-                    {fmtDollars(livingFundsEquation)} Liability
-                  </span>
+        {!allYearSelected && activeTab === "plan" ? (
+          <div className="grid grid-cols-[400px_640px] items-start gap-4">
+            <div className="min-w-0">
+              <article
+                className="rounded-[2px] border border-slate-300 border-t-[3px] border-t-slate-900 bg-white"
+                aria-label="Budget equation"
+              >
+                <div className="px-4 py-3 font-sans">
+                  <div className="flex items-baseline justify-between gap-3 py-1.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800">
+                        {monthName} Starting Funds
+                      </p>
+                      <p className="text-[11px] italic text-slate-400">
+                        Staged from {prevMonthLabel}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-mono text-lg font-bold tabular-nums text-slate-900">
+                      {fmtDollars(SNAPSHOT_STARTING_FUNDS)}
+                    </span>
+                  </div>
+                  <div className="border-t border-slate-200" />
+                  <div className="flex items-baseline justify-between gap-3 py-1.5">
+                    <span className="text-sm text-slate-700">Bills</span>
+                    <span className="font-mono text-sm tabular-nums text-slate-800">
+                      {fmtSignedDollars(-snapshotBills.total)}
+                    </span>
+                  </div>
+                  <div className="border-t border-slate-200" />
+                  <div className="flex items-baseline justify-between gap-3 py-1.5">
+                    <span className="text-sm text-slate-700">Living Funds</span>
+                    <span className="font-mono text-sm tabular-nums text-slate-800">
+                      {fmtSignedDollars(-livingLiability)}
+                    </span>
+                  </div>
+                  {unassignedSpent > 0 ? (
+                    <>
+                      <div className="border-t border-slate-200" />
+                      <div className="flex items-baseline justify-between gap-3 py-1.5">
+                        <span className="text-sm font-medium text-amber-700">
+                          ! Unassigned ({uncategorized.length} transaction
+                          {uncategorized.length === 1 ? "" : "s"})
+                        </span>
+                        <span className="font-mono text-sm tabular-nums text-amber-700">
+                          {fmtSignedDollars(-unassignedSpent)}
+                        </span>
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="mt-1 flex items-baseline justify-between gap-3 border-t-2 border-slate-400 bg-slate-50 px-1 py-2.5">
+                    <span className="text-sm font-semibold text-slate-800">
+                      Expected Cashout
+                      <span className="ml-1.5 font-normal text-slate-500">
+                        · in {daysToCashout} day{daysToCashout === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono text-lg font-bold tabular-nums text-slate-900">
+                      {fmtDollars(expectedNet)}
+                    </span>
+                  </div>
                 </div>
-                <LivingRows
-                  lines={livingLines}
-                  unassignedSpent={unassignedSpent}
-                  onBudgetChange={setLivingBudget}
-                />
               </article>
 
-              <article className={CARD_CLASS} aria-label="Credit Outpost">
-                <div className={SECTION_RULE}>
-                  <h3 className="text-sm font-bold text-slate-900">Credit Outpost</h3>
-                  <span className="text-xs italic text-slate-400">Tier 1 closed · Tier 2 building</span>
+              <article
+                className="mt-4 rounded-[2px] border border-stone-200 bg-white"
+                aria-label="Living Funds"
+              >
+                <div className="border-b border-stone-200 px-3 py-2.5">
+                  <h3 className="font-sans text-sm font-bold text-slate-900">Living Funds</h3>
                 </div>
-                <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Tier 1 Closed Statements
-                </h4>
-                <div className="space-y-1">
-                  {tier1Due.map((cycle) => {
-                    const status = tier1Status(cycle)
+                <ul className="divide-y divide-stone-100">
+                  {livingLines.map((line) => {
+                    const remaining = line.target - line.spent
+                    const isOver = remaining < 0
+                    const glyph = SNAPSHOT_LIVING_GLYPH[line.id]
+                    const Icon = glyph?.Icon
                     return (
-                      <Leader
-                        key={cycle.id}
-                        left={`DUE ${cycle.dueDateLabel} · ${cycle.cardLabel} · ${cycle.lastFour}`}
-                        meta={`Closed ${cycle.cycleLabel.split(" - ").slice(-1)[0]}`}
-                        right={
-                          <span className={status.tone}>
-                            {fmtDollars(status.amount)} {status.label}
+                      <li key={line.id}>
+                        <button
+                          type="button"
+                          onClick={() => openLivingEdit(line)}
+                          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-stone-50"
+                        >
+                          {Icon ? (
+                            <Icon
+                              className="h-3.5 w-3.5 shrink-0 stroke-[1.5] text-slate-500"
+                              aria-hidden
+                            />
+                          ) : (
+                            <span
+                              className="inline-flex w-3.5 justify-center text-[13px] leading-none text-slate-500"
+                              aria-hidden
+                            >
+                              ⚡
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
+                            {line.name}
                           </span>
-                        }
-                      />
+                          {isOver ? (
+                            <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-rose-600">
+                              +{fmtDollars(Math.abs(remaining))} Over
+                            </span>
+                          ) : null}
+                          <span className="shrink-0 font-mono text-sm tabular-nums text-slate-700">
+                            {fmtDollars(line.target)}
+                          </span>
+                        </button>
+                      </li>
                     )
                   })}
-                </div>
-                <h4 className="mb-1 mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Tier 2 Building Up
-                </h4>
-                <div className="space-y-1">
-                  {tier2Open.map((cycle) => (
-                    <Leader
-                      key={cycle.id}
-                      left={`${cycle.cardLabel} · ${cycle.lastFour}`}
-                      meta={`${cycle.cycleLabel} · 1:1 with ${fmtDollars(cycle.newSpending)} new spending`}
-                      right={
-                        <span className="text-slate-800">
-                          {fmtDollars(cycle.reservedPaymentFunds)} Reserved (+)
-                        </span>
-                      }
-                    />
-                  ))}
-                </div>
+                </ul>
               </article>
-
-              <IncomeDock monthName={monthName} nextMonthLabel={nextMonthLabel} lines={incomeLines} />
             </div>
 
             <article
-              className="flex max-h-[calc(100vh-220px)] min-h-[32rem] flex-col overflow-hidden rounded-[2px] border border-slate-200 bg-white"
+              className="flex h-[calc(100vh-160px)] min-w-0 flex-col rounded-[2px] border border-stone-200 bg-white"
               aria-label="Bills"
             >
-              <div className="flex shrink-0 items-baseline justify-between border-b border-slate-100 px-5 py-3">
-                <h3 className="text-sm font-bold text-slate-900">Bills</h3>
+              <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-stone-200 px-3 py-2.5">
+                <h3 className="font-sans text-sm font-bold text-slate-900">Bills</h3>
                 <span className="font-mono text-xs tabular-nums text-slate-500">
                   {fmtDollars(planBillTotals.total)} Total
                   <span className="px-1 text-slate-300" aria-hidden>
@@ -948,28 +1044,104 @@ export function LogbookWorkspace() {
                   {fmtDollars(planBillTotals.unpaid)} Unpaid
                 </span>
               </div>
-              <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
-                {PLAN_BILLS.map((bill) => {
-                  const status = isArchivedMonth ? "paid" : getBillStatus(bill, SNAPSHOT_AS_OF_DAY)
-                  return (
-                    <li key={bill.id} className="flex items-center gap-2 px-5 py-2 text-sm">
-                      <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-slate-500">
-                        {bill.dueDay}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-slate-800">{bill.listName}</span>
-                      <span className="shrink-0 font-mono text-xs tabular-nums text-slate-700">
-                        {fmtDollars(bill.amount)}
-                      </span>
-                      <BillStatusGutter status={status} />
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <ul>
+                  {unpaidBudgetBills.map((bill) => {
+                    const status = budgetBillStatus(bill)
+                    return (
+                      <li key={bill.id} className="border-b border-stone-100">
+                        <button
+                          type="button"
+                          onClick={() => openBillEdit(bill)}
+                          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-stone-50"
+                        >
+                          <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-slate-500">
+                            {bill.dueDay}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
+                            {bill.listName}
+                          </span>
+                          <span className="shrink-0 font-mono text-xs tabular-nums text-slate-700">
+                            {fmtDollars(bill.amount)}
+                          </span>
+                          {status === "pay" || status === "pending" || status === "autodraft" ? (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                toggleBillPaid(bill.id, false)
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  toggleBillPaid(bill.id, false)
+                                }
+                              }}
+                              className="inline-flex w-[4.5rem] shrink-0 cursor-pointer items-center justify-end font-mono text-[10px] font-semibold uppercase tracking-wide text-[#0087D2]"
+                            >
+                              {status === "autodraft" ? "Draft" : "Pay"}
+                            </span>
+                          ) : (
+                            <BillStatusGutter status={status} />
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {paidBudgetBills.length > 0 ? (
+                  <>
+                    <div className="border-t border-stone-300" aria-hidden />
+                    <ul>
+                      {paidBudgetBills.map((bill) => (
+                        <li key={bill.id} className="border-b border-stone-100">
+                          <button
+                            type="button"
+                            onClick={() => openBillEdit(bill)}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-stone-50"
+                          >
+                            <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-slate-500">
+                              {bill.dueDay}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
+                              {bill.listName}
+                            </span>
+                            <span className="shrink-0 font-mono text-xs tabular-nums text-slate-700">
+                              {fmtDollars(bill.amount)}
+                            </span>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                toggleBillPaid(bill.id, true)
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  toggleBillPaid(bill.id, true)
+                                }
+                              }}
+                              className="inline-flex w-[4.5rem] shrink-0 cursor-pointer items-center justify-end gap-1 font-mono text-[10px] uppercase tracking-wide text-emerald-700"
+                            >
+                              <ReceivedCheckIcon className="h-3.5 w-3.5 text-emerald-600" />
+                              Paid
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+              </div>
             </article>
           </div>
         ) : null}
 
-        {activeTab === "activity" ? (
+        {!allYearSelected && activeTab === "activity" ? (
           <article className="overflow-hidden rounded-[2px] border border-slate-200 bg-white" aria-label={`${monthName} activity`}>
             <div className="flex items-baseline justify-between border-b border-slate-100 px-5 py-3">
               <h3 className="text-sm font-bold text-slate-900">{monthName} Activity</h3>
@@ -1018,7 +1190,63 @@ export function LogbookWorkspace() {
           </article>
         ) : null}
 
-        {activeTab === "cashout" ? (
+        {!allYearSelected && activeTab === "income-tank" ? (
+          <div className="max-w-xl">
+            <TimelineIncomeTankCard
+              items={incomeLines}
+              selectedMonth={selectedMonth}
+              headerTheme="softSlate"
+            />
+          </div>
+        ) : null}
+
+        {!allYearSelected && activeTab === "cashout" ? (
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => cardModals.openSettleUp()}
+                className={cn(
+                  "group inline-flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[2px] px-5 py-2 shadow-sm transition-colors duration-150",
+                  readyToLock
+                    ? "bg-[#0087D2] text-white hover:bg-[#00487A] active:bg-[#00365D]"
+                    : "border border-slate-200/80 border-l-slate-200 bg-gradient-to-b from-slate-200 to-slate-200 text-slate-400 hover:border-slate-300/90 hover:from-sky-50 hover:to-sky-100 group-hover:text-slate-600",
+                )}
+              >
+                <span className="inline-flex items-center justify-center gap-2">
+                  <span className="text-[12px] font-bold uppercase tracking-wide">
+                    Cash Out {monthName}
+                  </span>
+                  <span
+                    className={cn(
+                      "pb-px text-[17px] font-black leading-none transition-colors duration-150",
+                      readyToLock
+                        ? "text-amber-400 group-hover:text-amber-200"
+                        : "text-slate-300 group-hover:text-slate-500",
+                    )}
+                    aria-hidden
+                  >
+                    &raquo;
+                  </span>
+                  <span
+                    className={cn(
+                      `text-[15px] font-medium italic leading-tight transition-colors duration-150 ${myJourneyNav.className}`,
+                      readyToLock
+                        ? "text-white group-hover:text-white"
+                        : "text-slate-500 group-hover:text-slate-700",
+                    )}
+                  >
+                    Advance to {nextMonthLabel}
+                  </span>
+                </span>
+                {!readyToLock ? (
+                  <span className="text-[10px] font-medium italic leading-tight text-slate-500 transition-colors duration-150 group-hover:text-slate-600">
+                    Unlocks on {nextMonthLabel} 1st
+                  </span>
+                ) : null}
+              </button>
+            </div>
+
           <div className="grid grid-cols-2 items-start gap-4">
             <article className={CARD_CLASS} aria-label={`${monthName} Closeout Audit`}>
               <div className={SECTION_RULE}>
@@ -1220,8 +1448,138 @@ export function LogbookWorkspace() {
               </article>
             </div>
           </div>
+          </div>
         ) : null}
       </div>
+
+      <Dialog open={!!editingLiving} onOpenChange={(open) => !open && setLivingEditId(null)}>
+        <DialogContent
+          className="gap-3 rounded-[2px] border border-slate-300 p-4 shadow-md sm:max-w-sm"
+          showCloseButton
+        >
+          {editingLiving ? (
+            <>
+              <DialogHeader className="gap-1">
+                <DialogTitle className="font-sans text-base font-bold text-slate-900">
+                  {editingLiving.name}
+                </DialogTitle>
+                <p className="font-mono text-xs tabular-nums text-slate-500">
+                  {fmtDollars(editingLiving.spent)} spent ·{" "}
+                  {editingLiving.target - editingLiving.spent < 0
+                    ? `${fmtDollars(Math.abs(editingLiving.target - editingLiving.spent))} over`
+                    : `${fmtDollars(editingLiving.target - editingLiving.spent)} left`}
+                </p>
+              </DialogHeader>
+              <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Target
+                <input
+                  autoFocus
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  value={livingTargetDraft}
+                  onChange={(event) => setLivingTargetDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      saveLivingEdit()
+                    }
+                  }}
+                  className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-mono text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]"
+                />
+              </label>
+              <DialogFooter className="gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setLivingEditId(null)}
+                  className="cursor-pointer rounded-[2px] border border-slate-300 px-3 py-1.5 font-sans text-xs font-semibold text-slate-600 hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveLivingEdit}
+                  className="cursor-pointer rounded-[2px] border border-[#0087D2] bg-[#0087D2] px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-[#006BB3]"
+                >
+                  Save
+                </button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingBill} onOpenChange={(open) => !open && setBillEditId(null)}>
+        <DialogContent
+          className="gap-3 rounded-[2px] border border-slate-300 p-4 shadow-md sm:max-w-sm"
+          showCloseButton
+        >
+          {editingBill ? (
+            <>
+              <DialogHeader className="gap-1">
+                <DialogTitle className="font-sans text-base font-bold text-slate-900">
+                  {editingBill.listName}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Amount
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    value={billAmountDraft}
+                    onChange={(event) => setBillAmountDraft(event.target.value)}
+                    className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-mono text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]"
+                  />
+                </label>
+                <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Due day
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    step={1}
+                    inputMode="numeric"
+                    value={billDueDraft}
+                    onChange={(event) => setBillDueDraft(event.target.value)}
+                    className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-mono text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]"
+                  />
+                </label>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 font-sans text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={billRecurringDraft}
+                  onChange={(event) => setBillRecurringDraft(event.target.checked)}
+                  className="h-3.5 w-3.5 rounded-[2px] border-slate-300"
+                />
+                Recurring autodraft
+              </label>
+              <DialogFooter className="gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setBillEditId(null)}
+                  className="cursor-pointer rounded-[2px] border border-slate-300 px-3 py-1.5 font-sans text-xs font-semibold text-slate-600 hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveBillEdit}
+                  className="cursor-pointer rounded-[2px] border border-[#0087D2] bg-[#0087D2] px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-[#006BB3]"
+                >
+                  Save
+                </button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {cardModals.dialogs}
     </div>
   )

@@ -1,15 +1,13 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react"
-import { CalendarDays, HelpCircle, Lock, Map, Star } from "lucide-react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { HelpCircle, Map } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArchiveYearModal } from "@/components/archive-year-modal"
-import { HeaderYearControl } from "@/components/header-year-control"
 import {
   DEFAULT_BUDGET_YEAR,
   MONTH_LABELS,
@@ -21,7 +19,7 @@ import { SNAPSHOT_LIVING } from "@/lib/snapshot-demo-data"
 import { SNAPSHOT_LIVING_GLYPH } from "@/lib/snapshot-living-glyphs"
 import { cn } from "@/lib/utils"
 
-type RoadmapTab = "my-bills" | "my-income" | "forecast"
+type RoadmapTab = "my-bills" | "my-income"
 
 type BillApplyTo = "timeline-bill" | "direct-stash"
 type IncomeApplyTo = "starting-funds" | "direct-stash"
@@ -69,24 +67,6 @@ type PlannedWindfall = {
   applyTo: IncomeApplyTo
 }
 
-type StashEvent = {
-  label: string
-  amount: number
-}
-
-type ForecastMonth = {
-  month: MonthLabel
-  monthIndex: number
-  startingFunds: number
-  bills: number
-  livingFunds: number
-  cashout: number
-  stashEvents: StashEvent[]
-  stashBalance: number
-  isClosed: boolean
-  isActive: boolean
-}
-
 type BlueprintKind = "bill" | "living" | "purchase" | "income" | "windfall"
 
 type FormSession =
@@ -96,15 +76,7 @@ type FormSession =
 const TABS: { id: RoadmapTab; label: string }[] = [
   { id: "my-bills", label: "My Bills" },
   { id: "my-income", label: "My Income" },
-  { id: "forecast", label: "Forecast" },
 ]
-
-/** Demo “today” month for lock / star column states (Nov). */
-const ACTIVE_MONTH_INDEX = 10
-
-const STARTING_STASH = 14200
-/** Seed Starting Funds for January (prior December timeline income). */
-const JAN_STARTING_FUNDS = 6000
 
 const planInnerCardClass =
   "flex min-w-0 flex-col overflow-hidden rounded-sm border border-slate-300/70 bg-white shadow-[0_2px_10px_rgba(15,23,42,0.06)]"
@@ -430,27 +402,6 @@ function fmtDollars(n: number) {
   return `${sign}$${Math.abs(Math.round(n)).toLocaleString()}`
 }
 
-function fmtCurrencyPlain(n: number) {
-  const sign = n < 0 ? "-" : ""
-  const abs = Math.abs(Math.round(n)).toLocaleString()
-  return (
-    <span className="inline-flex items-baseline">
-      <span className="text-[0.9em] text-slate-500">{sign}$</span>
-      <span className="ml-[0.14em]">{abs}</span>
-    </span>
-  )
-}
-
-function fmtSignedStash(n: number) {
-  const abs = Math.abs(Math.round(n)).toLocaleString()
-  if (n >= 0) return `+$${abs}`
-  return `-$${abs}`
-}
-
-function appliesInMonth(months: number[], monthIndex: number) {
-  return months.length === 0 || months.includes(monthIndex)
-}
-
 function sortRecurringByWhen<T extends { day: number; months: number[] }>(items: T[]) {
   return [...items].sort((a, b) => {
     const aEvery = a.months.length === 0
@@ -462,101 +413,6 @@ function sortRecurringByWhen<T extends { day: number; months: number[] }>(items:
     if (aFirst !== bFirst) return aFirst - bFirst
     return a.day - b.day
   })
-}
-
-function buildForecast(args: {
-  recurringBills: RecurringBill[]
-  livingFunds: LivingFund[]
-  purchases: PlannedPurchase[]
-  recurringIncome: RecurringIncome[]
-  windfalls: PlannedWindfall[]
-}): ForecastMonth[] {
-  const livingTotal = args.livingFunds.reduce((s, l) => s + l.amount, 0)
-
-  const timelineIncomeByMonth = Array.from({ length: 12 }, () => 0)
-  const timelineBillsByMonth = Array.from({ length: 12 }, () => 0)
-  const stashEventsByMonth: StashEvent[][] = Array.from({ length: 12 }, () => [])
-
-  for (const bill of args.recurringBills) {
-    for (let m = 0; m < 12; m++) {
-      if (!appliesInMonth(bill.months, m)) continue
-      if (bill.applyTo === "timeline-bill") {
-        timelineBillsByMonth[m]! += bill.amount
-      } else {
-        stashEventsByMonth[m]!.push({
-          label: `−$${bill.amount.toLocaleString()} ${bill.name}`,
-          amount: -bill.amount,
-        })
-      }
-    }
-  }
-
-  for (const purchase of args.purchases) {
-    const m = purchase.monthIndex
-    if (purchase.applyTo === "timeline-bill") {
-      timelineBillsByMonth[m]! += purchase.amount
-    } else {
-      stashEventsByMonth[m]!.push({
-        label: `−$${purchase.amount.toLocaleString()} ${purchase.name}`,
-        amount: -purchase.amount,
-      })
-    }
-  }
-
-  for (const income of args.recurringIncome) {
-    for (let m = 0; m < 12; m++) {
-      if (!appliesInMonth(income.months, m)) continue
-      if (income.applyTo === "starting-funds") {
-        timelineIncomeByMonth[m]! += income.amount
-      } else {
-        stashEventsByMonth[m]!.push({
-          label: `+$${income.amount.toLocaleString()} ${income.name}`,
-          amount: income.amount,
-        })
-      }
-    }
-  }
-
-  for (const windfall of args.windfalls) {
-    const m = windfall.monthIndex
-    if (windfall.applyTo === "starting-funds") {
-      timelineIncomeByMonth[m]! += windfall.amount
-    } else {
-      stashEventsByMonth[m]!.push({
-        label: `+$${windfall.amount.toLocaleString()} ${windfall.name}`,
-        amount: windfall.amount,
-      })
-    }
-  }
-
-  const rows: ForecastMonth[] = []
-  let stash = STARTING_STASH
-
-  for (let m = 0; m < 12; m++) {
-    const startingFunds =
-      m === 0 ? JAN_STARTING_FUNDS : timelineIncomeByMonth[m - 1]!
-    const bills = timelineBillsByMonth[m]!
-    const livingFunds = livingTotal
-    const cashout = startingFunds - bills - livingFunds
-    const events = stashEventsByMonth[m]!
-    const eventTotal = events.reduce((s, e) => s + e.amount, 0)
-    stash = stash + cashout + eventTotal
-
-    rows.push({
-      month: MONTH_LABELS[m]!,
-      monthIndex: m,
-      startingFunds,
-      bills,
-      livingFunds,
-      cashout,
-      stashEvents: events,
-      stashBalance: stash,
-      isClosed: m < ACTIVE_MONTH_INDEX,
-      isActive: m === ACTIVE_MONTH_INDEX,
-    })
-  }
-
-  return rows
 }
 
 type RoadmapWorkspaceProps = {
@@ -643,64 +499,6 @@ function SectionCard({
   )
 }
 
-function StashTrajectoryCard({
-  dec31Projection,
-  onArchiveClick,
-}: {
-  dec31Projection: number
-  onArchiveClick: () => void
-}) {
-  return (
-    <div
-      className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-      aria-label="Year-end stash trajectory"
-    >
-      <div className="flex min-w-0 flex-wrap items-center gap-3.5">
-        <div className="flex flex-col items-center">
-          <span className="mb-1 whitespace-nowrap text-[11.5px] font-medium italic leading-none tracking-wide text-slate-400">
-            Starting Stash
-          </span>
-          <span
-            className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-800 ${amountInter.className}`}
-          >
-            {fmtCurrencyPlain(STARTING_STASH)}
-          </span>
-        </div>
-        <span
-          className="select-none self-center text-[15px] font-medium leading-none text-slate-400"
-          aria-hidden
-        >
-          ➔
-        </span>
-        <div className="flex flex-col items-center">
-          <span className="mb-1 whitespace-nowrap text-[11.5px] font-semibold italic leading-none tracking-wide text-slate-600">
-            Dec 31 Projection
-          </span>
-          <span
-            className={`whitespace-nowrap text-[15.5px] font-bold leading-none tabular-nums text-slate-900 ${amountInter.className}`}
-          >
-            {fmtCurrencyPlain(dec31Projection)}
-          </span>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={onArchiveClick}
-        aria-label={`How archiving ${DEFAULT_BUDGET_YEAR} works`}
-        className="group inline-flex shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg bg-slate-200 px-3.5 py-1.5 text-slate-400 transition-all duration-300 hover:bg-gradient-to-b hover:from-sky-100 hover:to-sky-200/90 hover:text-sky-700/80"
-      >
-        <span className="whitespace-nowrap text-[12.5px] font-bold leading-tight">
-          ARCHIVE {DEFAULT_BUDGET_YEAR} &raquo;
-        </span>
-        <span className="text-[10px] font-medium italic leading-tight text-slate-500 transition-colors duration-300 group-hover:text-sky-600/80">
-          Unlocks after Dec Cashout
-        </span>
-      </button>
-    </div>
-  )
-}
-
 function PlanTable({
   children,
   compact = false,
@@ -724,11 +522,10 @@ function PlanTable({
 }
 
 /**
- * Roadmap: My Bills / My Income / Forecast with Logbook chrome.
+ * Bills & Income: timeless My Bills / My Income blueprints.
  */
 export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<RoadmapTab>("my-bills")
-  const [isArchiveOpen, setIsArchiveOpen] = useState(false)
   const [infoKind, setInfoKind] = useState<BlueprintKind | null>(null)
   const [formSession, setFormSession] = useState<FormSession | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -752,21 +549,6 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
     useState<BillApplyTo>("timeline-bill")
   const [draftIncomeApplyTo, setDraftIncomeApplyTo] =
     useState<IncomeApplyTo>("starting-funds")
-
-  const forecastMonths = useMemo(
-    () =>
-      buildForecast({
-        recurringBills,
-        livingFunds,
-        purchases,
-        recurringIncome,
-        windfalls,
-      }),
-    [recurringBills, livingFunds, purchases, recurringIncome, windfalls],
-  )
-
-  const dec31Projection =
-    forecastMonths[11]?.stashBalance ?? STARTING_STASH
 
   const sortedBills = useMemo(
     () => sortRecurringByWhen(recurringBills),
@@ -1093,70 +875,41 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
 
   return (
     <div className="relative flex flex-col">
-      <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-2">
-        <header
-          className="flex min-h-[52px] w-full flex-wrap items-end justify-between gap-x-4 gap-y-2"
-          aria-labelledby="roadmap-heading"
-        >
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-            <h1
-              id="roadmap-heading"
-              className="flex min-w-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
-            >
-              <Map
-                className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]"
-                aria-hidden
-              />
-              <span className="min-w-0 truncate">Roadmap</span>
-            </h1>
-            <span className="shrink-0 self-center text-slate-300" aria-hidden>
-              |
-            </span>
-            <div
-              className="inline-flex w-auto max-w-full items-center gap-1 self-center"
-              role="tablist"
-              aria-label="Roadmap sections"
-            >
-              {TABS.map((tab) => {
-                const isActive = activeTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "cursor-pointer px-1.5 py-1 text-[12px] font-medium transition-colors duration-200",
-                      isActive
-                        ? "font-semibold text-[#0087D2]"
-                        : "text-stone-500 hover:text-slate-700",
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+      <div className="flex min-w-0 flex-col gap-4 px-4 pb-4 pt-7">
+        <header aria-labelledby="roadmap-heading">
+          <h1
+            id="roadmap-heading"
+            className="flex min-w-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
+          >
+            <Map className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
+            <span className="min-w-0 truncate">Bills &amp; Income</span>
+          </h1>
 
-          <div className="flex shrink-0 items-end">
-            <CalendarDays
-              className="mr-2.5 h-4 w-4 shrink-0 self-center text-slate-400"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <Suspense
-              fallback={
-                <span
-                  className={`text-base font-medium tabular-nums text-slate-400 ${amountInter.className}`}
+          <div
+            className="mt-3 flex items-end gap-1 border-b border-[#0087D2]"
+            role="tablist"
+            aria-label="Bills and Income sections"
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "cursor-pointer px-3 py-1.5 font-sans text-sm font-medium",
+                    isActive
+                      ? "-mb-px rounded-t-[2px] border-x border-b border-t border-x-[#0087D2] border-b-stone-100 border-t-[#0087D2] bg-stone-100 font-semibold text-[#0087D2]"
+                      : "rounded-t-[2px] text-slate-500 hover:text-slate-800",
+                  )}
                 >
-                  …
-                </span>
-              }
-            >
-              <HeaderYearControl />
-            </Suspense>
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
         </header>
 
@@ -1249,10 +1002,6 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
               </SectionCard>
 
               <div className="flex min-w-0 flex-col gap-4">
-                <StashTrajectoryCard
-                  dec31Projection={dec31Projection}
-                  onArchiveClick={() => setIsArchiveOpen(true)}
-                />
                 <SectionCard
                   title="My Living Funds"
                   actionLabel="+ New Living Fund"
@@ -1474,10 +1223,6 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
               </SectionCard>
 
               <div className="flex min-w-0 flex-col gap-4">
-                <StashTrajectoryCard
-                  dec31Projection={dec31Projection}
-                  onArchiveClick={() => setIsArchiveOpen(true)}
-                />
                 <SectionCard
                   title="Planned Extra Cash"
                   actionLabel="+ Extra Cash"
@@ -1530,178 +1275,8 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
             </div>
           ) : null}
 
-          {activeTab === "forecast" ? (
-            <div className="flex min-w-0 flex-col gap-4">
-              <StashTrajectoryCard
-                dec31Projection={dec31Projection}
-                onArchiveClick={() => setIsArchiveOpen(true)}
-              />
-              <article
-                className={planInnerCardClass}
-                aria-labelledby="roadmap-forecast-heading"
-              >
-              <div className="border-b border-slate-200 px-3 py-2.5">
-                <h3
-                  id="roadmap-forecast-heading"
-                  className="text-[12px] font-semibold text-slate-700"
-                >
-                  12-Month Forecast
-                </h3>
-              </div>
-
-              <div className="px-2 py-3 sm:px-3">
-                <div
-                  className="grid w-full grid-cols-[5.75rem_repeat(12,minmax(0,1fr))] gap-x-1"
-                  role="table"
-                  aria-label="Year forecast by month"
-                >
-                  <div className="pb-2" aria-hidden />
-                  {forecastMonths.map((col) => (
-                    <div
-                      key={`h-${col.month}`}
-                      className={cn(
-                        "flex items-center justify-center gap-0.5 rounded-t-md pb-2 pt-1 text-center text-[10px] font-semibold tracking-wide sm:text-[11px]",
-                        col.isClosed && "bg-slate-100/80 text-slate-400",
-                        col.isActive && "bg-sky-50 text-sky-800",
-                        !col.isClosed && !col.isActive && "text-slate-500",
-                      )}
-                      role="columnheader"
-                    >
-                      {col.isClosed ? (
-                        <Lock
-                          className="h-2.5 w-2.5 shrink-0 stroke-[2] text-slate-400"
-                          aria-label="Closed month"
-                        />
-                      ) : null}
-                      {col.isActive ? (
-                        <Star
-                          className="h-2.5 w-2.5 shrink-0 fill-amber-400 stroke-amber-500"
-                          aria-label="Active month"
-                        />
-                      ) : null}
-                      <span>{col.month}</span>
-                    </div>
-                  ))}
-
-                  {(
-                    [
-                      ["Starting Funds", "startingFunds"],
-                      ["Bills", "bills"],
-                      ["Living Funds", "livingFunds"],
-                    ] as const
-                  ).map(([label, key]) => (
-                    <div key={key} className="contents">
-                      <div className="flex items-center py-1.5 pr-1 text-[10px] font-medium leading-tight text-slate-500 sm:text-[11px]">
-                        {label}
-                      </div>
-                      {forecastMonths.map((col) => (
-                        <div
-                          key={`${key}-${col.month}`}
-                          className={cn(
-                            `px-0.5 py-1.5 text-center text-[10px] font-medium tabular-nums text-slate-700 sm:text-[11px] ${amountInter.className}`,
-                            col.isClosed && "bg-slate-100/80 text-slate-400",
-                            col.isActive && "bg-sky-50/90",
-                          )}
-                        >
-                          {fmtDollars(col[key])}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-
-                  <div className="contents">
-                    <div className="flex flex-col justify-center border-t border-slate-200 py-1.5 pr-1">
-                      <span className="text-[10px] font-semibold leading-tight text-slate-700 sm:text-[11px]">
-                        Cashout
-                      </span>
-                      <span className="text-[8px] font-medium leading-tight text-slate-400 sm:text-[9px]">
-                        (added to your Stash)
-                      </span>
-                    </div>
-                    {forecastMonths.map((col) => (
-                      <div
-                        key={`cashout-${col.month}`}
-                        className={cn(
-                          `border-t border-slate-200 px-0.5 py-1.5 text-center text-[10px] font-bold tabular-nums text-slate-800 sm:text-[11px] ${amountInter.className}`,
-                          col.isClosed && "bg-slate-100/80 text-slate-400",
-                          col.isActive && "bg-sky-50/90",
-                        )}
-                      >
-                        {fmtDollars(col.cashout)}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="col-span-full my-2 border-t border-slate-300" />
-
-                  <div className="flex flex-col justify-center py-1.5 pr-1">
-                    <span className="text-[10px] font-medium leading-tight text-slate-500 sm:text-[11px]">
-                      Additional Events
-                    </span>
-                    <span className="text-[8px] font-medium leading-tight text-slate-400 sm:text-[9px]">
-                      (directly to/from your Stash)
-                    </span>
-                  </div>
-                  {forecastMonths.map((col) => {
-                    const net = col.stashEvents.reduce((s, e) => s + e.amount, 0)
-                    return (
-                      <div
-                        key={`events-${col.month}`}
-                        className={cn(
-                          `flex items-center justify-center px-0.5 py-1.5 text-center text-[10px] font-semibold tabular-nums sm:text-[11px] ${amountInter.className}`,
-                          col.isClosed && "bg-slate-100/80",
-                          col.isActive && "bg-sky-50/90",
-                          net === 0
-                            ? "text-slate-300"
-                            : net < 0
-                              ? col.isClosed
-                                ? "text-rose-400"
-                                : "text-rose-600"
-                              : col.isClosed
-                                ? "text-emerald-500/70"
-                                : "text-emerald-700",
-                        )}
-                      >
-                        {net === 0 ? "—" : fmtSignedStash(net)}
-                      </div>
-                    )
-                  })}
-
-                  <div className="flex flex-col justify-center border-t border-slate-300 pt-2.5 pr-1">
-                    <span className="text-[10px] font-bold leading-tight text-slate-800 sm:text-[11px]">
-                      Ending Stash
-                    </span>
-                    <span className="text-[8px] font-semibold leading-tight text-slate-500 sm:text-[9px]">
-                      Balance
-                    </span>
-                  </div>
-                  {forecastMonths.map((col) => (
-                    <div
-                      key={`stash-${col.month}`}
-                      className={cn(
-                        `border-t border-slate-300 px-0.5 pt-2.5 text-center text-[11px] font-bold tabular-nums text-slate-900 sm:text-[12px] ${amountInter.className}`,
-                        col.isClosed && "bg-slate-100/80 text-slate-400",
-                        col.isActive && "bg-sky-50/90 text-slate-900",
-                      )}
-                    >
-                      {fmtDollars(col.stashBalance)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              </article>
-            </div>
-          ) : null}
         </div>
       </div>
-
-      <ArchiveYearModal
-        isOpen={isArchiveOpen}
-        onOpenChange={setIsArchiveOpen}
-        year={DEFAULT_BUDGET_YEAR}
-        nextYear={DEFAULT_BUDGET_YEAR + 1}
-        isReadyToArchive={false}
-      />
 
       <Dialog
         open={infoKind !== null}

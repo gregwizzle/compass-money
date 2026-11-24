@@ -88,8 +88,8 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
         variant === "hybrid"
           ? "w-[156px] rounded-l-[10px] border-r border-slate-300/80 shadow-[inset_-1px_0_0_rgba(15,23,42,0.06)]"
           : variant === "surgical"
-            ? "w-[180px] rounded-l-[2px]"
-            : "w-[180px] rounded-tl-xl",
+            ? "w-[196px] rounded-l-[2px]"
+            : "w-[196px] rounded-tl-xl",
       )}
     >
       <div className="flex min-h-[60px] shrink-0 items-end pl-4 pr-3 pb-2 pt-2">

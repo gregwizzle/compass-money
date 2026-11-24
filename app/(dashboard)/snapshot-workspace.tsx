@@ -952,7 +952,7 @@ export function SnapshotWorkspace() {
                   href={`/roadmap?month=${selectedMonth}`}
                   className="ml-auto inline-flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-[#0087D2] underline-offset-2 hover:underline"
                 >
-                  <span>{monthLongNameFromLabel(selectedMonth)} Roadmap</span>
+                  <span>{monthLongNameFromLabel(selectedMonth)} Bills &amp; Income</span>
                   <Maximize2
                     className="h-3.5 w-3.5 shrink-0 stroke-[2] text-[#0087D2]"
                     aria-hidden
