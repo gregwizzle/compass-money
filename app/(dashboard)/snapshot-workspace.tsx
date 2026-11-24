@@ -1309,7 +1309,7 @@ export function SnapshotWorkspace() {
                   className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]"
                   aria-hidden
                 />
-                <span className="min-w-0 truncate">Credit Card Payments</span>
+                <span className="min-w-0 truncate">Credit Card Payments Due</span>
               </h2>
               <button
                 type="button"

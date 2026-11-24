@@ -15,6 +15,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isBetaHybrid =
     pathname === "/timeline-beta" || pathname.startsWith("/timeline-beta/")
+  const isSurgical =
+    pathname === "/logbook" || pathname.startsWith("/logbook/")
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-[#B8D8EC] p-4">
@@ -26,21 +28,30 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       >
         <div
           className={cn(
-            "box-border flex w-full flex-row items-stretch overflow-hidden rounded-xl border-2 border-slate-500 bg-stone-100 shadow-xl",
-            isBetaHybrid && "max-w-5xl border-slate-400/90 shadow-lg",
+            "box-border flex w-full flex-row items-stretch overflow-hidden",
+            isSurgical
+              ? "w-[1280px] rounded-[2px] bg-stone-100 shadow-none ring-1 ring-slate-200"
+              : "rounded-xl border-2 border-slate-500 bg-stone-100 shadow-xl",
+            isBetaHybrid && !isSurgical && "max-w-5xl border-slate-400/90 shadow-lg",
           )}
         >
-          <AppSidebar variant={isBetaHybrid ? "hybrid" : "default"} />
+          <AppSidebar
+            variant={isSurgical ? "surgical" : isBetaHybrid ? "hybrid" : "default"}
+          />
           <div
             className={cn(
               "flex min-h-0 min-w-0 flex-1 flex-col",
               isBetaHybrid && "min-w-0 rounded-r-[10px] bg-stone-50/80",
+              isSurgical && "bg-stone-100",
             )}
           >
             <DashboardHeader />
             <div
               id="dashboard-main-pane"
-              className="relative flex min-h-0 flex-1 flex-col"
+              className={cn(
+                "relative flex min-h-0 flex-1 flex-col",
+                isSurgical && "bg-stone-100",
+              )}
             >
               {children}
               <DevPageStamp />

@@ -72,7 +72,7 @@ function initialsFromName(name: string) {
 
 type AppSidebarProps = {
   /** Tighter width + divider; used for `/timeline-beta` hybrid shell (see dashboard-shell). */
-  variant?: "default" | "hybrid"
+  variant?: "default" | "hybrid" | "surgical"
 }
 
 export function AppSidebar({ variant = "default" }: AppSidebarProps) {
@@ -83,10 +83,13 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "sticky top-0 flex h-full min-h-full shrink-0 flex-col bg-stone-100",
+        "sticky top-0 flex h-full min-h-full shrink-0 flex-col",
+        "bg-stone-100",
         variant === "hybrid"
           ? "w-[156px] rounded-l-[10px] border-r border-slate-300/80 shadow-[inset_-1px_0_0_rgba(15,23,42,0.06)]"
-          : "w-[180px] rounded-tl-xl",
+          : variant === "surgical"
+            ? "w-[180px] rounded-l-[2px]"
+            : "w-[180px] rounded-tl-xl",
       )}
     >
       <div className="flex min-h-[60px] shrink-0 items-end pl-4 pr-3 pb-2 pt-2">

@@ -15,7 +15,7 @@ import {
 
 /** Primary sidebar routes (order preserved for nav UI) */
 export const dashboardPrimaryNav = [
-  { name: "Logbook", href: "/logbook", icon: BookOpen },
+  { name: "Captain's Chair", href: "/logbook", icon: BookOpen },
   { name: "Roadmap", href: "/roadmap", icon: Map },
   { name: "Activity", href: "/activity", icon: ListIcon },
   { name: "Accounts", href: "/accounts", icon: Landmark },
@@ -44,7 +44,7 @@ type RouteEntry = { href: string; title: string; icon: LucideIcon }
 
 const ROUTE_INDEX: RouteEntry[] = [
   { href: "/", title: "Timeline", icon: CalendarRange },
-  { href: "/logbook", title: "Logbook", icon: BookOpen },
+  { href: "/logbook", title: "Captain's Chair", icon: BookOpen },
   { href: "/old", title: "Old", icon: Trash2 },
   { href: "/roadmap", title: "Roadmap", icon: Map },
   { href: "/activity", title: "Activity", icon: ListIcon },
