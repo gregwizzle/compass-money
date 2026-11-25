@@ -1221,7 +1221,7 @@ export function TimelineWorkspace({
                   </div>
                   <p className="mt-1 text-[10px] italic text-slate-500">
                     Edit budget categories in{" "}
-                    <Link href="/roadmap" className="text-[#0087D2] underline-offset-2 hover:underline">
+                    <Link href="/bills-and-income" className="text-[#0087D2] underline-offset-2 hover:underline">
                       Roadmap
                     </Link>
                   </p>

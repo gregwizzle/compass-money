@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { cn } from "@/lib/utils"
-import { DevPageStamp } from "@/components/dev-page-stamp"
 
 /**
  * Layout shell for the dashboard. `/timeline-beta` uses a tighter “hybrid” chrome:
@@ -16,7 +15,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const isBetaHybrid =
     pathname === "/timeline-beta" || pathname.startsWith("/timeline-beta/")
   const isSurgical =
-    pathname === "/logbook" || pathname.startsWith("/logbook/")
+    pathname === "/captains-chair" || pathname.startsWith("/captains-chair/")
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-[#B8D8EC] p-4">
@@ -54,7 +53,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               )}
             >
               {children}
-              <DevPageStamp />
             </div>
           </div>
         </div>

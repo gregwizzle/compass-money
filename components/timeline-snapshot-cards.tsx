@@ -117,7 +117,7 @@ const ACTIVITY_ROW_HOVER_CELL_LAST =
   "transition-shadow duration-150 group-hover:shadow-[inset_-1px_0_0_0_rgba(2,132,199,0.22),inset_0_1px_0_0_rgba(2,132,199,0.22),inset_0_-1px_0_0_rgba(2,132,199,0.22)]"
 
 const CREDIT_OUTPOST_ROW_BUTTON_CLASS =
-  "group w-full min-w-0 cursor-pointer rounded-lg border border-slate-200/80 border-l-slate-200 bg-gradient-to-b from-white to-slate-50/90 px-2 py-2 text-left shadow-sm transition-colors duration-150 hover:border-slate-300/90 hover:from-sky-50 hover:to-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0087D2] focus-visible:ring-offset-1 sm:px-3"
+  "group w-full min-w-0 cursor-pointer rounded-[2px] bg-white px-1 py-3 text-left transition-colors duration-150 hover:bg-sky-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0087D2]"
 
 const CREDIT_PAYMENT_ROW_GRID_CLASS =
   "grid w-full min-w-0 grid-cols-[minmax(0,0.62fr)_minmax(0,1.45fr)_minmax(0,1.02fr)_minmax(0,0.78fr)] items-center gap-x-1.5 sm:gap-x-2"
@@ -556,107 +556,107 @@ export function TimelineCreditPaymentsCard({
           <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
         </Link>
       </header>
-      <div className="relative z-10 min-w-0 space-y-4 bg-slate-50/40 p-3">
-        <div className="px-2.5 sm:px-3">
-          <div className="min-w-0 space-y-2 pl-3 sm:pl-4">
-            <ul className="space-y-2">
-              {due.map((cycle) => {
-                const reserved = cycle.reservedPaymentFunds
-                const minDue = cycle.minimumDue
-                const isPaymentReady = reserved >= minDue
-                const isMinDue = reserved === 0
-                const isActionNeeded = reserved > 0 && !isPaymentReady
-                const amount = isPaymentReady
-                  ? { value: fmtDollars(reserved), label: "Reserved" }
-                  : isActionNeeded
-                    ? { value: fmtDollars(minDue - reserved), label: "Short" }
-                    : { value: fmtDollars(minDue), label: "Needed" }
-                const status = isPaymentReady
-                  ? { text: "Payment Ready", cls: "text-emerald-700" }
-                  : isMinDue
-                    ? { text: "Minimum Due", cls: "text-amber-700" }
-                    : { text: "Action Needed", cls: "text-rose-700" }
-                const amountTone = isPaymentReady
-                  ? "text-emerald-700"
-                  : isMinDue
-                    ? "text-amber-700"
-                    : "text-rose-700"
-                const amountLabelTone = isPaymentReady
-                  ? "text-emerald-600"
-                  : isMinDue
-                    ? "text-amber-600"
-                    : "text-rose-600"
+      <div className="relative z-10 min-w-0">
+        {due.length === 0 ? (
+          <div className="px-3 py-4 text-center">
+            <p className="text-[12px] font-semibold text-slate-600">All Caught Up</p>
+            <p className="mt-1 text-[11px] font-medium text-slate-400">No Payments due at this time</p>
+          </div>
+        ) : (
+          <ul className="flex flex-col px-3 py-1.5">
+            {due.map((cycle, index) => {
+              const reserved = cycle.reservedPaymentFunds
+              const minDue = cycle.minimumDue
+              const isPaymentReady = reserved >= minDue
+              const isMinDue = reserved === 0
+              const isActionNeeded = reserved > 0 && !isPaymentReady
+              const amount = isPaymentReady
+                ? { value: fmtDollars(reserved), label: "Reserved" }
+                : isActionNeeded
+                  ? { value: fmtDollars(minDue - reserved), label: "Short" }
+                  : { value: fmtDollars(minDue), label: "Needed" }
+              const status = isPaymentReady
+                ? { text: "Payment Ready", cls: "text-emerald-700" }
+                : isMinDue
+                  ? { text: "Minimum Due", cls: "text-amber-700" }
+                  : { text: "Action Needed", cls: "text-rose-700" }
+              const amountTone = isPaymentReady
+                ? "text-emerald-700"
+                : isMinDue
+                  ? "text-amber-700"
+                  : "text-rose-700"
+              const amountLabelTone = isPaymentReady
+                ? "text-emerald-600"
+                : isMinDue
+                  ? "text-amber-600"
+                  : "text-rose-600"
 
-                return (
-                  <li key={cycle.id} className="min-w-0">
-                    <button
-                      type="button"
-                      className={CREDIT_OUTPOST_ROW_BUTTON_CLASS}
-                      aria-label={`Open settlement for ${fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}`}
-                      onClick={() => onSelectCycle?.(cycle.id)}
-                    >
-                      <div className={CREDIT_PAYMENT_ROW_GRID_CLASS} role="row">
-                        <div className="flex flex-col items-center">
-                          <span className="text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
-                            DUE
-                          </span>
-                          <span
-                            className={`mt-0.5 block text-center text-[11px] font-medium tabular-nums text-slate-600 ${amountInter.className}`}
-                          >
-                            {fmtCreditDueDisplay(cycle.dueDateLabel)}
-                          </span>
+              return (
+                <li
+                  key={cycle.id}
+                  className={cn("min-w-0", index > 0 && "border-t border-slate-200")}
+                >
+                  <button
+                    type="button"
+                    className={CREDIT_OUTPOST_ROW_BUTTON_CLASS}
+                    aria-label={`Open settlement for ${fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}`}
+                    onClick={() => onSelectCycle?.(cycle.id)}
+                  >
+                    <div className={CREDIT_PAYMENT_ROW_GRID_CLASS} role="row">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
+                          DUE
+                        </span>
+                        <span
+                          className={`mt-0.5 block text-center text-[11px] font-medium tabular-nums text-slate-600 ${amountInter.className}`}
+                        >
+                          {fmtCreditDueDisplay(cycle.dueDateLabel)}
+                        </span>
+                      </div>
+                      <div className="min-w-0 self-center py-0.5">
+                        <div className="break-words text-[12px] font-semibold leading-snug text-slate-800">
+                          {fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}
                         </div>
-                        <div className="min-w-0 self-center py-0.5">
-                          <div className="break-words text-[12px] font-semibold leading-snug text-slate-800">
-                            {fmtCreditCardName(cycle.cardLabel, cycle.lastFour)}
-                          </div>
-                          <div className="break-words text-[10px] leading-snug text-slate-500">
-                            Statement Closed {statementClosedLabelFromCycle(cycle.cycleLabel)}
-                          </div>
-                        </div>
-                        <div className="w-full text-center">
-                          <span
-                            className={`block text-center text-[11px] font-semibold tabular-nums ${amountTone} ${amountInter.className}`}
-                          >
-                            {amount.value}
-                          </span>
-                          <span className={`mt-0.5 block text-center text-[10px] font-semibold ${amountLabelTone}`}>
-                            {amount.label}
-                          </span>
-                        </div>
-                        <div className="w-full text-center">
-                          <span
-                            className={`flex w-full items-center justify-center gap-1 px-2 text-[9px] font-semibold leading-none tracking-normal ${status.cls}`}
-                          >
-                            {isMinDue ? (
-                              <AlertTriangle className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
-                            ) : null}
-                            {isActionNeeded ? (
-                              <span className="shrink-0 text-[13px] font-extrabold leading-none" aria-hidden>
-                                !
-                              </span>
-                            ) : null}
-                            {isPaymentReady ? (
-                              <Zap className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
-                            ) : null}
-                            <span className="shrink-0">{status.text}</span>
-                            <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
-                          </span>
+                        <div className="break-words text-[10px] leading-snug text-slate-500">
+                          Statement Closed {statementClosedLabelFromCycle(cycle.cycleLabel)}
                         </div>
                       </div>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-            {due.length === 0 ? (
-              <div className="px-2 py-3 text-center">
-                <p className="text-[12px] font-semibold text-slate-600">All Caught Up</p>
-                <p className="mt-1 text-[11px] font-medium text-slate-400">No Payments due at this time</p>
-              </div>
-            ) : null}
-          </div>
-        </div>
+                      <div className="w-full text-center">
+                        <span
+                          className={`block text-center text-[11px] font-semibold tabular-nums ${amountTone} ${amountInter.className}`}
+                        >
+                          {amount.value}
+                        </span>
+                        <span className={`mt-0.5 block text-center text-[10px] font-semibold ${amountLabelTone}`}>
+                          {amount.label}
+                        </span>
+                      </div>
+                      <div className="w-full text-center">
+                        <span
+                          className={`flex w-full items-center justify-center gap-1 px-2 text-[9px] font-semibold leading-none tracking-normal ${status.cls}`}
+                        >
+                          {isMinDue ? (
+                            <AlertTriangle className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                          ) : null}
+                          {isActionNeeded ? (
+                            <span className="shrink-0 text-[13px] font-extrabold leading-none" aria-hidden>
+                              !
+                            </span>
+                          ) : null}
+                          {isPaymentReady ? (
+                            <Zap className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                          ) : null}
+                          <span className="shrink-0">{status.text}</span>
+                          <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
     </section>
   )
@@ -692,25 +692,25 @@ export function selectRecentActivityDisplay(rows: SnapshotActivityRow[], cap = R
 export function TimelineRecentActivityCard({
   selectedMonth: _selectedMonth,
   rows,
-  totalCount,
   minHeight,
   onOpenFullMonth,
   onSelectRow,
 }: {
   selectedMonth: MonthLabel
   rows: SnapshotActivityRow[]
-  totalCount: number
   minHeight?: number
   onOpenFullMonth?: () => void
   onSelectRow?: (rowId: string) => void
 }) {
   const { recent, additionalUnassigned } = selectRecentActivityDisplay(rows)
-  const shownCount = recent.length + additionalUnassigned.length
 
-  const renderActivityRow = (row: SnapshotActivityRow) => (
+  const renderActivityRow = (row: SnapshotActivityRow, hideTrailingBorder = false) => (
     <TableRow
       key={row.id}
-      className="group cursor-pointer border-slate-100 transition-colors hover:bg-sky-50/90"
+      className={cn(
+        "group cursor-pointer border-slate-100 transition-colors hover:bg-sky-50/90",
+        hideTrailingBorder && "border-b-0",
+      )}
       tabIndex={0}
       role="button"
       onClick={() => onSelectRow?.(row.id)}
@@ -853,7 +853,10 @@ export function TimelineRecentActivityCard({
                 Transaction
               </TableHead>
               <TableHead className="h-8 px-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-                Category
+                <span className="inline-flex items-center gap-x-1.5">
+                  <span className="h-4 w-4 shrink-0" aria-hidden />
+                  Category
+                </span>
               </TableHead>
               <TableHead className="h-8 px-2 text-right text-[9px] font-semibold uppercase tracking-wider text-slate-400">
                 Amount
@@ -861,7 +864,9 @@ export function TimelineRecentActivityCard({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {recent.map(renderActivityRow)}
+            {recent.map((row, index) =>
+              renderActivityRow(row, index === recent.length - 1 && additionalUnassigned.length > 0),
+            )}
             {additionalUnassigned.length > 0 ? (
               <TableRow className="border-slate-100 hover:bg-transparent">
                 <TableCell colSpan={4} className="px-2 py-1.5 text-center">
@@ -871,19 +876,9 @@ export function TimelineRecentActivityCard({
                 </TableCell>
               </TableRow>
             ) : null}
-            {additionalUnassigned.map(renderActivityRow)}
+            {additionalUnassigned.map((row) => renderActivityRow(row))}
           </TableBody>
         </Table>
-        <div className="mt-auto border-t border-slate-100 pt-2 text-center">
-          <p className="inline-flex items-baseline gap-1.5">
-            <span className={`text-sm font-semibold tabular-nums text-slate-700 ${amountInter.className}`}>
-              {shownCount}
-            </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-              of {totalCount} transactions this month
-            </span>
-          </p>
-        </div>
       </div>
     </section>
   )

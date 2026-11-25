@@ -104,12 +104,12 @@ export function DashboardHeader() {
   const { title, icon: PageIcon } = resolveDashboardRoute(pathname)
   const isMyJourney =
     pathname === "/my-journey" || pathname.startsWith("/my-journey/")
-  /** Roadmap / Logbook own their page headers (title, year) on the canvas. */
+  /** Bills & Income and Captain's Chair own their page headers on the canvas. */
   const ownsCanvasHeader =
-    pathname === "/roadmap" ||
-    pathname.startsWith("/roadmap/") ||
-    pathname === "/logbook" ||
-    pathname.startsWith("/logbook/")
+    pathname === "/bills-and-income" ||
+    pathname.startsWith("/bills-and-income/") ||
+    pathname === "/captains-chair" ||
+    pathname.startsWith("/captains-chair/")
 
   if (ownsCanvasHeader) return null
 

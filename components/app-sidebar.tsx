@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { CompassRoseLogo } from "@/components/compass-rose-logo"
+import { DevPageStamp } from "@/components/dev-page-stamp"
 import { CATEGORY_GLYPH } from "@/components/roadmap-categories-grid"
 import { amountInter, compassWordmark, myJourneyNav } from "@/lib/fonts"
 import {
@@ -83,18 +84,18 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "sticky top-0 flex h-full min-h-full shrink-0 flex-col",
+        "sticky top-0 flex h-full min-h-full shrink-0 flex-col overflow-x-hidden",
         "bg-stone-100",
         variant === "hybrid"
-          ? "w-[156px] rounded-l-[10px] border-r border-slate-300/80 shadow-[inset_-1px_0_0_rgba(15,23,42,0.06)]"
+          ? "w-[156px] max-w-[156px] rounded-l-[10px] border-r border-slate-300/80 shadow-[inset_-1px_0_0_rgba(15,23,42,0.06)]"
           : variant === "surgical"
-            ? "w-[196px] rounded-l-[2px]"
-            : "w-[196px] rounded-tl-xl",
+            ? "w-[196px] max-w-[196px] rounded-l-[2px]"
+            : "w-[196px] max-w-[196px] rounded-tl-xl",
       )}
     >
       <div className="flex min-h-[60px] shrink-0 items-end pl-4 pr-3 pb-2 pt-2">
         <Link
-          href="/logbook"
+          href="/captains-chair"
           className="flex min-w-0 items-end gap-2.5 rounded-md pr-1 pb-0 pt-0 outline-offset-2 transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0087D2]"
           aria-label="Compass Money home"
         >
@@ -338,6 +339,9 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
               </li>
             )
           })}
+          <li className="min-w-0 overflow-hidden">
+            <DevPageStamp />
+          </li>
         </ul>
       </div>
     </aside>

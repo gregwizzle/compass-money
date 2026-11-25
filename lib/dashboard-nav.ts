@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
-  BookOpen,
+  ShipWheel,
   CalendarRange,
   CircleQuestionMark,
   Footprints,
@@ -15,8 +15,8 @@ import {
 
 /** Primary sidebar routes (order preserved for nav UI) */
 export const dashboardPrimaryNav = [
-  { name: "Captain's Chair", href: "/logbook", icon: BookOpen },
-  { name: "Bills & Income", href: "/roadmap", icon: Map },
+  { name: "Captain's Chair", href: "/captains-chair", icon: ShipWheel },
+  { name: "Bills & Income", href: "/bills-and-income", icon: Map },
   { name: "Activity", href: "/activity", icon: ListIcon },
   { name: "Accounts", href: "/accounts", icon: Landmark },
   { name: "My Journey", href: "/my-journey", icon: Footprints },
@@ -44,9 +44,9 @@ type RouteEntry = { href: string; title: string; icon: LucideIcon }
 
 const ROUTE_INDEX: RouteEntry[] = [
   { href: "/", title: "Timeline", icon: CalendarRange },
-  { href: "/logbook", title: "Captain's Chair", icon: BookOpen },
+  { href: "/captains-chair", title: "Captain's Chair", icon: ShipWheel },
   { href: "/old", title: "Old", icon: Trash2 },
-  { href: "/roadmap", title: "Bills & Income", icon: Map },
+  { href: "/bills-and-income", title: "Bills & Income", icon: Map },
   { href: "/activity", title: "Activity", icon: ListIcon },
   { href: "/accounts", title: "Accounts", icon: Landmark },
   { href: "/my-journey", title: "My Journey", icon: Footprints },

@@ -100,12 +100,12 @@ export function DevPageStamp() {
   if (process.env.NODE_ENV !== "development") return null
 
   return (
-    <div
-      className="pointer-events-none absolute bottom-2 left-2 z-10 select-none font-mono text-[10px] tabular-nums tracking-tight text-slate-400/90"
+    <p
+      className="pointer-events-none min-w-0 max-w-full select-none overflow-hidden text-ellipsis whitespace-nowrap py-1 pl-2.5 pr-2 font-mono text-[10px] tabular-nums tracking-tight text-stone-400"
       aria-hidden
       title="Updates when dev server applies a client change (HMR / refresh)"
     >
-      dev · applied {stamp || "…"}
-    </div>
+      updated {stamp || "…"}
+    </p>
   )
 }

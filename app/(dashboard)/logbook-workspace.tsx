@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type ReactNode } from "react"
-import { BookOpen, ChevronsRight, Lock, RefreshCw, Star } from "lucide-react"
+import { ChartColumn, ChevronRight, ChevronsRight, ClipboardList, FileText, Lock, RefreshCw, ShipWheel, Sparkles, Star } from "lucide-react"
 import { ReceivedCheckIcon } from "@/components/received-check-icon"
 import { TimelineIncomeTankCard } from "@/components/timeline-income-tank-card"
 import {
@@ -24,7 +24,6 @@ import {
   MONTH_LABELS,
   getMonthStripFlags,
   monthIndexFromLabel,
-  monthLongNameFromIndex,
   monthLongNameFromLabel,
   type MonthLabel,
 } from "@/lib/budget-month"
@@ -37,7 +36,7 @@ import {
   type SnapshotLivingLine,
 } from "@/lib/snapshot-demo-data"
 import { SNAPSHOT_LIVING_GLYPH } from "@/lib/snapshot-living-glyphs"
-import { myJourneyNav } from "@/lib/fonts"
+import { amountInter, myJourneyNav } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
 
 type LogbookTab = "snapshot" | "plan" | "activity" | "cashout" | "income-tank"
@@ -406,7 +405,7 @@ function AnnualMonthGauge({
             className={cn(
               "shrink-0 cursor-pointer rounded-[2px] border px-2 py-1 text-[13px] font-medium transition-colors",
               isSelected
-                ? "border-[#0087D2] bg-sky-100/80 font-semibold text-slate-900"
+                ? "border-[#0087D2] bg-sky-100/80 font-semibold text-slate-600"
                 : flags.isLive
                   ? "border-transparent bg-transparent text-slate-800 hover:bg-stone-200/60"
                   : flags.isFuture
@@ -443,7 +442,7 @@ function AnnualMonthGauge({
         className={cn(
           "shrink-0 cursor-pointer rounded-[2px] border px-2 py-1 text-[13px] font-medium transition-colors",
           allYearSelected
-            ? "border-[#0087D2] bg-sky-100/80 font-semibold text-slate-900"
+            ? "border-[#0087D2] bg-sky-100/80 font-semibold text-slate-600"
             : "border-transparent bg-transparent text-slate-600 hover:bg-stone-200/60",
         )}
       >
@@ -484,6 +483,163 @@ function BillStatusGutter({ status }: { status: BillStatus }) {
   )
 }
 
+function PlanDetailsDialog({
+  open,
+  onOpenChange,
+  monthName,
+  prevMonthName,
+  livingLines,
+  expectedCashout,
+  daysToCashout,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  monthName: string
+  prevMonthName: string
+  livingLines: SnapshotLivingLine[]
+  expectedCashout: number
+  daysToCashout: number
+}) {
+  const paidTotal = SNAPSHOT_BILLS.filter((bill) => bill.dueDay <= SNAPSHOT_AS_OF_DAY).reduce(
+    (sum, bill) => sum + bill.amount,
+    0,
+  )
+  const upcomingTotal = SNAPSHOT_BILLS.filter((bill) => bill.dueDay > SNAPSHOT_AS_OF_DAY).reduce(
+    (sum, bill) => sum + bill.amount,
+    0,
+  )
+  const billTotal = paidTotal + upcomingTotal
+  const livingRows = livingLines.map((line) => ({
+    id: line.id,
+    label: line.name,
+    amount: Math.max(line.target, line.spent),
+    note: line.spent > line.target ? "over plan" : undefined,
+  }))
+  const livingSubtotal = livingRows.reduce((sum, line) => sum + line.amount, 0)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[min(760px,88vh)] gap-0 overflow-hidden border-slate-200 bg-white p-0 sm:max-w-md">
+        <div className="px-6 pb-4 pt-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold tracking-tight text-slate-800">
+              {monthName} Plan Details
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+        <div className="flex max-h-[min(520px,58vh)] flex-col gap-6 overflow-y-auto border-y border-slate-100 bg-slate-50 px-6 py-6">
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-600">
+              1
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <h4 className="text-sm font-bold text-slate-600">Starting Funds</h4>
+                <span className={cn("text-sm font-semibold tabular-nums text-slate-600", amountInter.className)}>
+                  {fmtDollars(SNAPSHOT_STARTING_FUNDS)}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                The income you made in {prevMonthName} was set aside to fund {monthName}&apos;s Bills and Expenses
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0087D2]/20 text-sm font-bold text-[#0087D2]">
+              2
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <h4 className="text-sm font-bold text-[#0087D2]">Bills</h4>
+                <span className={cn("text-sm font-semibold tabular-nums text-slate-900", amountInter.className)}>
+                  {fmtDollars(billTotal)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-col gap-1 border-l border-slate-200 pl-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[13px] text-slate-600">Paid Bills</span>
+                  <span className={cn("pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}>
+                    {fmtDollars(paidTotal)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[13px] text-slate-600">Upcoming Bills</span>
+                  <span className={cn("pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}>
+                    {fmtDollars(upcomingTotal)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100/90 text-sm font-bold text-orange-700/90">
+              3
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <h4 className="text-sm font-bold text-orange-700/90">Living Funds</h4>
+                <span className={cn("text-sm font-semibold tabular-nums text-slate-900", amountInter.className)}>
+                  {fmtDollars(livingSubtotal)}
+                </span>
+              </div>
+              <ul className="mt-1.5 flex flex-col gap-1 border-l border-orange-200 pl-3">
+                {livingRows.map((row) => (
+                  <li key={row.id} className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-[13px] text-slate-600">
+                      {row.label}
+                      {row.note ? <span className="ml-1.5 italic text-slate-400"> {row.note}</span> : null}
+                    </span>
+                    <span className={cn("shrink-0 pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}>
+                      {fmtDollars(row.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+              4
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <h4 className="text-sm font-bold text-emerald-700">
+                  Expected Cashout
+                  <span className="ml-1.5 font-normal italic text-emerald-700/70">
+                    · in {daysToCashout} day{daysToCashout === 1 ? "" : "s"}
+                  </span>
+                </h4>
+                <span className={cn("shrink-0 text-sm font-semibold tabular-nums text-emerald-700", amountInter.className)}>
+                  {fmtDollars(expectedCashout)}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                You are on track to deposit these unused funds into your Stash at the end of the month.
+              </p>
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="items-center border-t border-slate-100 bg-white px-6 py-4 sm:justify-between">
+          <p className={cn("flex items-center gap-1.5 text-lg font-medium italic text-orange-700/90", myJourneyNav.className)}>
+            Planning for success
+            <Sparkles className="h-4 w-4 text-orange-700/80" aria-hidden />
+          </p>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="cursor-pointer rounded border border-slate-300 bg-white px-4 py-2 text-sm font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /**
  * Logbook inside the 1280px Surgical Cockpit.
  * Folder tabs stay on the canvas. Nothing on this page opens a drawer or modal.
@@ -506,6 +662,7 @@ export function LogbookWorkspace() {
   const [activityOverrides, setActivityOverrides] = useState<Record<string, LogbookActivitySave>>({})
   const [budgets, setBudgets] = useState<Record<string, number>>({})
   const [billsReviewed, setBillsReviewed] = useState(false)
+  const [planDetailsOpen, setPlanDetailsOpen] = useState(false)
   const [shortfallAck, setShortfallAck] = useState(false)
   const [lockNote, setLockNote] = useState<string | null>(null)
   const [billPaidOverrides, setBillPaidOverrides] = useState<Record<string, boolean>>({})
@@ -528,9 +685,11 @@ export function LogbookWorkspace() {
     budgetYear: DEFAULT_BUDGET_YEAR,
   })
   const isArchivedMonth = selectedMonthFlags.isArchived
-  const prevMonthLabel = monthLongNameFromIndex((selectedMonthIndex + 11) % 12)
   const nextMonthLabel = monthLongNameFromLabel(
     MONTH_LABELS[(selectedMonthIndex + 1) % 12] as MonthLabel,
+  )
+  const prevMonthName = monthLongNameFromLabel(
+    MONTH_LABELS[(selectedMonthIndex + 11) % 12] as MonthLabel,
   )
   const daysToCashout = useMemo(() => {
     const now = new Date()
@@ -820,7 +979,7 @@ export function LogbookWorkspace() {
             id="logbook-heading"
             className="flex shrink-0 items-center gap-2.5 font-sans text-2xl font-semibold leading-[1.15] tracking-[-0.02em] text-slate-600"
           >
-            <BookOpen className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
+            <ShipWheel className="h-7 w-7 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
             <span className="min-w-0 truncate">Captain&apos;s Chair</span>
           </h1>
           <div className="flex min-w-0 flex-1 items-end">
@@ -912,7 +1071,6 @@ export function LogbookWorkspace() {
               <TimelineRecentActivityCard
                 selectedMonth={selectedMonth}
                 rows={activeRecentRows}
-                totalCount={activeRecentRows.length}
                 onOpenFullMonth={() => setActiveTab("activity")}
                 onSelectRow={cardModals.openActivity}
               />
@@ -924,62 +1082,72 @@ export function LogbookWorkspace() {
           <div className="grid grid-cols-[400px_640px] items-start gap-4">
             <div className="min-w-0">
               <article
-                className="rounded-[2px] border border-slate-300 border-t-[3px] border-t-slate-900 bg-white"
-                aria-label="Budget equation"
+                className="overflow-hidden rounded-[2px] border border-slate-300 bg-white font-sans"
+                aria-labelledby="budget-plan-heading"
               >
-                <div className="px-4 py-3 font-sans">
-                  <div className="flex items-baseline justify-between gap-3 py-1.5">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">
-                        {monthName} Starting Funds
-                      </p>
-                      <p className="text-[11px] italic text-slate-400">
-                        Staged from {prevMonthLabel}
-                      </p>
-                    </div>
-                    <span className="shrink-0 font-mono text-lg font-bold tabular-nums text-slate-900">
+                <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-300 bg-white px-3 py-2.5">
+                  <h2
+                    id="budget-plan-heading"
+                    className="flex min-w-0 items-center gap-2 text-[15px] font-bold tracking-tight text-slate-600"
+                  >
+                    <ClipboardList className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
+                    <span className="min-w-0 truncate">{monthName} Plan</span>
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setPlanDetailsOpen(true)}
+                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-[10px] font-semibold leading-snug text-[#0087D2] underline-offset-2 hover:underline"
+                  >
+                    <span>Plan Details</span>
+                    <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                  </button>
+                </header>
+                <div className="px-4 pb-3 pt-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="pl-5 text-sm font-semibold text-slate-600">Starting Funds</span>
+                    <span className={cn("shrink-0 text-lg font-semibold tabular-nums text-slate-700", amountInter.className)}>
                       {fmtDollars(SNAPSHOT_STARTING_FUNDS)}
                     </span>
                   </div>
-                  <div className="border-t border-slate-200" />
-                  <div className="flex items-baseline justify-between gap-3 py-1.5">
-                    <span className="text-sm text-slate-700">Bills</span>
-                    <span className="font-mono text-sm tabular-nums text-slate-800">
-                      {fmtSignedDollars(-snapshotBills.total)}
-                    </span>
-                  </div>
-                  <div className="border-t border-slate-200" />
-                  <div className="flex items-baseline justify-between gap-3 py-1.5">
-                    <span className="text-sm text-slate-700">Living Funds</span>
-                    <span className="font-mono text-sm tabular-nums text-slate-800">
-                      {fmtSignedDollars(-livingLiability)}
-                    </span>
-                  </div>
-                  {unassignedSpent > 0 ? (
-                    <>
-                      <div className="border-t border-slate-200" />
-                      <div className="flex items-baseline justify-between gap-3 py-1.5">
-                        <span className="text-sm font-medium text-amber-700">
-                          ! Unassigned ({uncategorized.length} transaction
-                          {uncategorized.length === 1 ? "" : "s"})
-                        </span>
-                        <span className="font-mono text-sm tabular-nums text-amber-700">
-                          {fmtSignedDollars(-unassignedSpent)}
-                        </span>
-                      </div>
-                    </>
-                  ) : null}
-                  <div className="mt-1 flex items-baseline justify-between gap-3 border-t-2 border-slate-400 bg-slate-50 px-1 py-2.5">
-                    <span className="text-sm font-semibold text-slate-800">
-                      Expected Cashout
-                      <span className="ml-1.5 font-normal text-slate-500">
-                        · in {daysToCashout} day{daysToCashout === 1 ? "" : "s"}
+                  <div className="mt-3 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600">
+                        <FileText className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                        Bills
                       </span>
-                    </span>
-                    <span className="shrink-0 font-mono text-lg font-bold tabular-nums text-slate-900">
-                      {fmtDollars(expectedNet)}
-                    </span>
+                      <span className={cn("shrink-0 text-sm font-medium tabular-nums text-slate-700", amountInter.className)}>
+                        {fmtSignedDollars(-snapshotBills.total)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600">
+                        <ChartColumn className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                        Living Funds
+                      </span>
+                      <span className={cn("shrink-0 text-sm font-medium tabular-nums text-slate-700", amountInter.className)}>
+                        {fmtSignedDollars(-livingLiability)}
+                      </span>
+                    </div>
                   </div>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 border-t border-emerald-200 bg-emerald-50 px-4 py-2.5">
+                  <span className="min-w-0 pl-5 text-sm font-medium italic text-slate-700">
+                    Expected Cashout
+                    <span
+                      className={cn(
+                        "ml-2 inline-flex items-baseline font-semibold italic text-orange-700/90",
+                        myJourneyNav.className,
+                        "text-xl",
+                      )}
+                    >
+                      in{" "}
+                      <span className="mx-1 text-[1.3em] font-bold leading-none">{daysToCashout}</span>
+                      {daysToCashout === 1 ? "day" : "days"}
+                    </span>
+                  </span>
+                  <span className={cn("shrink-0 text-lg font-semibold tabular-nums text-emerald-700", amountInter.className)}>
+                    {fmtDollars(expectedNet)}
+                  </span>
                 </div>
               </article>
 
@@ -988,7 +1156,10 @@ export function LogbookWorkspace() {
                 aria-label="Living Funds"
               >
                 <div className="border-b border-stone-200 px-3 py-2.5">
-                  <h3 className="font-sans text-sm font-bold text-slate-900">Living Funds</h3>
+                  <h3 className="flex min-w-0 items-center gap-2 font-sans text-[15px] font-bold tracking-tight text-slate-600">
+                    <ChartColumn className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
+                    Living Funds
+                  </h3>
                 </div>
                 <ul className="divide-y divide-stone-100">
                   {livingLines.map((line) => {
@@ -1032,8 +1203,11 @@ export function LogbookWorkspace() {
               className="flex h-[calc(100vh-160px)] min-w-0 flex-col rounded-[2px] border border-stone-200 bg-white"
               aria-label="Bills"
             >
-              <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-stone-200 px-3 py-2.5">
-                <h3 className="font-sans text-sm font-bold text-slate-900">Bills</h3>
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-3 py-2.5">
+                <h3 className="flex min-w-0 items-center gap-2 font-sans text-[15px] font-bold tracking-tight text-slate-600">
+                  <FileText className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
+                  Bills
+                </h3>
                 <span className="font-mono text-xs tabular-nums text-slate-500">
                   {fmtDollars(planBillTotals.total)} Total
                   <span className="px-1 text-slate-300" aria-hidden>
@@ -1449,6 +1623,16 @@ export function LogbookWorkspace() {
           </div>
         ) : null}
       </div>
+
+      <PlanDetailsDialog
+        open={planDetailsOpen}
+        onOpenChange={setPlanDetailsOpen}
+        monthName={monthName}
+        prevMonthName={prevMonthName}
+        livingLines={livingLines}
+        expectedCashout={expectedNet}
+        daysToCashout={daysToCashout}
+      />
 
       <Dialog open={!!editingLiving} onOpenChange={(open) => !open && setLivingEditId(null)}>
         <DialogContent

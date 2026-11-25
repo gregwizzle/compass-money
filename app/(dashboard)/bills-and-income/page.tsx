@@ -1,4 +1,4 @@
-import { RoadmapWorkspace } from "@/app/(dashboard)/roadmap/roadmap-workspace"
+import { RoadmapWorkspace } from "@/app/(dashboard)/bills-and-income/roadmap-workspace"
 import { MONTH_LABELS, type MonthLabel } from "@/lib/budget-month"
 
 type RoadmapPageProps = {
