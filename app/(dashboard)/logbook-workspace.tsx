@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState, type ReactNode } from "react"
-import { ChartColumn, ChevronRight, ChevronsRight, ClipboardList, FileText, Lock, RefreshCw, ShipWheel, Sparkles, Star } from "lucide-react"
+import Link from "next/link"
+import { ArrowDown, ArrowRight, ChartColumn, Check, ChevronRight, ChevronsRight, ClipboardList, CreditCard, FileText, Lock, RefreshCw, ShipWheel, Sparkles, Star, X } from "lucide-react"
 import { ReceivedCheckIcon } from "@/components/received-check-icon"
 import { TimelineIncomeTankCard } from "@/components/timeline-income-tank-card"
 import {
@@ -10,6 +11,16 @@ import {
   TimelineSnapshotCard,
 } from "@/components/timeline-snapshot-cards"
 import { useLogbookCardModals, type LogbookActivitySave } from "@/components/logbook-timeline-modals"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -254,6 +265,41 @@ function fmtSignedDollars(n: number) {
   return `${sign}${fmtDollars(n)}`
 }
 
+/** Category, Total Funded, Spent, Remaining. Shared so the header, rows, and total line up. */
+const livingExpenseCols =
+  "grid w-full grid-cols-[minmax(0,1fr)_5.75rem_4rem_5.25rem] items-center gap-x-1.5"
+
+/** Card, Payment, From Reserve, Additional Needed. */
+const creditPayCols =
+  "grid w-full grid-cols-[minmax(0,1fr)_4.5rem_5.5rem_6rem] items-center gap-x-1.5"
+
+/** Label plus a right-hand amount. The amount column matches the edit box so the three figures line up. */
+const livingEditCols = "grid grid-cols-[minmax(0,1fr)_4.75rem] items-center gap-x-3"
+
+/** Same shell as the Now tab cards: slate border and a light drop shadow. */
+const budgetCardShell = "rounded-sm border border-slate-300/70 bg-white shadow-sm"
+
+/** Plan-line hover: thicker blue ring and a pale sky wash, without shifting the card. */
+const planCardLinkStyle = {
+  borderColor: "#0087D2",
+  backgroundColor: "#f0f9ff",
+  boxShadow: "0 0 0 2px #0087D2",
+} as const
+
+/** Quiet network tint for the last-four card pill. */
+function creditNetworkPillClass(cardLabel: string) {
+  const key = cardLabel.trim().toLowerCase()
+  if (key.includes("visa")) return "border-sky-300/80 bg-sky-50 text-sky-900"
+  if (key.includes("master")) return "border-rose-300/70 bg-rose-50 text-rose-900"
+  if (key.includes("discover")) return "border-orange-300/80 bg-orange-50 text-orange-950"
+  if (key.includes("amex") || key.includes("american")) return "border-slate-400/70 bg-slate-100 text-slate-800"
+  return "border-slate-300/80 bg-stone-50 text-slate-800"
+}
+
+/** Soft blue row highlight from the Now tab, with a little room inside the edge. */
+const budgetRowHover =
+  "-mx-2 rounded-md px-2 transition-colors duration-150 hover:bg-sky-50/90 hover:shadow-[inset_0_0_0_1px_rgba(2,132,199,0.22)]"
+
 function reserveKey(cycleId: string) {
   return `reserve:${cycleId}`
 }
@@ -274,6 +320,15 @@ function creditDueSortKey(dueDateLabel: string) {
     return Number.isNaN(t) ? 0 : t
   }
   return 0
+}
+
+function fmtCreditDueDisplay(dueDateLabel: string) {
+  const parts = dueDateLabel.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    const month = parts[0]!.charAt(0).toUpperCase() + parts[0]!.slice(1).toLowerCase()
+    return `${month} ${parts[1]}`
+  }
+  return dueDateLabel.trim()
 }
 
 function tier1Status(cycle: CreditCycle) {
@@ -465,7 +520,7 @@ function BillStatusGutter({ status }: { status: BillStatus }) {
     return (
       <span className="inline-flex w-[4.5rem] shrink-0 items-center justify-end gap-1 font-mono text-[10px] uppercase tracking-wide text-slate-400">
         <RefreshCw className="h-3 w-3 stroke-[1.8]" aria-hidden />
-        Draft
+        Auto
       </span>
     )
   }
@@ -489,6 +544,7 @@ function PlanDetailsDialog({
   monthName,
   prevMonthName,
   livingLines,
+  creditPayments,
   expectedCashout,
   daysToCashout,
 }: {
@@ -497,6 +553,7 @@ function PlanDetailsDialog({
   monthName: string
   prevMonthName: string
   livingLines: SnapshotLivingLine[]
+  creditPayments: { id: string; label: string; additionalNeeded: number }[]
   expectedCashout: number
   daysToCashout: number
 }) {
@@ -512,14 +569,19 @@ function PlanDetailsDialog({
   const livingRows = livingLines.map((line) => ({
     id: line.id,
     label: line.name,
-    amount: Math.max(line.target, line.spent),
-    note: line.spent > line.target ? "over plan" : undefined,
+    amount: line.target,
+    overage: Math.max(0, line.spent - line.target),
   }))
-  const livingSubtotal = livingRows.reduce((sum, line) => sum + line.amount, 0)
+  const livingSubtotal = livingRows.reduce((sum, line) => sum + line.amount + line.overage, 0)
+  const creditAdditionalTotal = creditPayments.reduce((sum, row) => sum + row.additionalNeeded, 0)
+  const creditAdditionalRows = creditPayments.filter((row) => row.additionalNeeded > 0)
+  const showCreditAdditional = creditAdditionalTotal > 0
+  const cashoutStep = showCreditAdditional ? 5 : 4
+  const cashoutShort = expectedCashout < 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(760px,88vh)] gap-0 overflow-hidden border-slate-200 bg-white p-0 sm:max-w-md">
+      <DialogContent className="max-h-[min(920px,94vh)] gap-0 overflow-hidden border-slate-200 bg-white p-0 sm:max-w-md">
         <div className="px-6 pb-4 pt-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold tracking-tight text-slate-800">
@@ -527,7 +589,7 @@ function PlanDetailsDialog({
             </DialogTitle>
           </DialogHeader>
         </div>
-        <div className="flex max-h-[min(520px,58vh)] flex-col gap-6 overflow-y-auto border-y border-slate-100 bg-slate-50 px-6 py-6">
+        <div className="flex flex-col gap-6 border-y border-slate-100 bg-slate-50 px-6 py-6">
           <div className="flex items-start gap-4">
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-600">
               1
@@ -579,30 +641,68 @@ function PlanDetailsDialog({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-3">
-                <h4 className="text-sm font-bold text-orange-700/90">Living Funds</h4>
+                <h4 className="text-sm font-bold text-orange-700/90">Living Expenses</h4>
                 <span className={cn("text-sm font-semibold tabular-nums text-slate-900", amountInter.className)}>
                   {fmtDollars(livingSubtotal)}
                 </span>
               </div>
               <ul className="mt-1.5 flex flex-col gap-1 border-l border-orange-200 pl-3">
                 {livingRows.map((row) => (
-                  <li key={row.id} className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 text-[13px] text-slate-600">
-                      {row.label}
-                      {row.note ? <span className="ml-1.5 italic text-slate-400"> {row.note}</span> : null}
-                    </span>
-                    <span className={cn("shrink-0 pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}>
-                      {fmtDollars(row.amount)}
-                    </span>
+                  <li key={row.id} className="flex flex-col gap-1">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 text-[13px] text-slate-600">{row.label}</span>
+                      <span className={cn("shrink-0 pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}>
+                        {fmtDollars(row.amount)}
+                      </span>
+                    </div>
+                    {row.overage > 0 ? (
+                      <div className="flex items-baseline justify-between gap-3 pl-4">
+                        <span className="min-w-0 text-[13px] italic text-slate-500">overage</span>
+                        <span
+                          style={{ fontStyle: "italic" }}
+                          className={cn("shrink-0 pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}
+                        >
+                          {fmtDollars(row.overage)}
+                        </span>
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             </div>
           </div>
 
+          {showCreditAdditional ? (
+            <div className="flex items-start gap-4">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-[#0087D2]">
+                4
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h4 className="text-sm font-bold text-[#0087D2]">
+                    Additional Needed for Credit Card Payments
+                  </h4>
+                  <span className={cn("shrink-0 text-sm font-semibold tabular-nums text-slate-900", amountInter.className)}>
+                    {fmtDollars(creditAdditionalTotal)}
+                  </span>
+                </div>
+                <ul className="mt-1.5 flex flex-col gap-1 border-l border-sky-200 pl-3">
+                  {creditAdditionalRows.map((row) => (
+                    <li key={row.id} className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 text-[13px] text-slate-600">{row.label}</span>
+                      <span className={cn("shrink-0 pr-4 text-[13px] tabular-nums text-slate-600", amountInter.className)}>
+                        {fmtDollars(row.additionalNeeded)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex items-start gap-4">
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
-              4
+              {cashoutStep}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-3">
@@ -612,19 +712,127 @@ function PlanDetailsDialog({
                     · in {daysToCashout} day{daysToCashout === 1 ? "" : "s"}
                   </span>
                 </h4>
-                <span className={cn("shrink-0 text-sm font-semibold tabular-nums text-emerald-700", amountInter.className)}>
-                  {fmtDollars(expectedCashout)}
+                <span
+                  className={cn(
+                    "shrink-0 text-sm font-semibold tabular-nums",
+                    amountInter.className,
+                    cashoutShort ? "text-rose-700" : "text-emerald-700",
+                  )}
+                >
+                  {cashoutShort ? fmtSignedDollars(expectedCashout) : fmtDollars(expectedCashout)}
                 </span>
               </div>
               <p className="mt-1 text-sm text-slate-600">
-                You are on track to deposit these unused funds into your Stash at the end of the month.
+                {cashoutShort
+                  ? "Your current budget exceeds Starting Funds. You might want to tighten up spending this month—any shortfall will need to be covered from your Stash."
+                  : "You are on track to deposit these unused funds into your Stash at the end of the month."}
               </p>
             </div>
           </div>
         </div>
         <DialogFooter className="items-center border-t border-slate-100 bg-white px-6 py-4 sm:justify-between">
           <p className={cn("flex items-center gap-1.5 text-lg font-medium italic text-orange-700/90", myJourneyNav.className)}>
-            Planning for success
+            {cashoutShort ? "Looks like a tight month - You can do this!" : "Planning for success"}
+            <Sparkles className="h-4 w-4 text-orange-700/80" aria-hidden />
+          </p>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="cursor-pointer rounded border border-slate-300 bg-white px-4 py-2 text-sm font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CreditPaymentDetailsDialog({
+  open,
+  onOpenChange,
+  monthName,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  monthName: string
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[min(920px,94vh)] gap-0 overflow-hidden border-slate-200 bg-white p-0 sm:max-w-lg">
+        <div className="px-6 pb-4 pt-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold tracking-tight text-slate-800">
+              Credit Card Payments due in {monthName}
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+        <div className="flex flex-col gap-6 border-y border-slate-100 bg-slate-50 px-6 py-6">
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0087D2]/20 text-sm font-bold text-[#0087D2]">
+              1
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-bold text-[#0087D2]">Proposed Payment</h4>
+              <div className="mt-1.5 space-y-2 text-sm leading-relaxed text-slate-600">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0087D2]/20 text-xs font-bold text-[#0087D2]">
+                    A
+                  </span>
+                  <p className="min-w-0 flex-1 pt-0.5">
+                    Total of all new spending during the statement cycle.
+                  </p>
+                </div>
+                <div className="flex justify-center py-0.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-[12px] font-bold uppercase tracking-wide text-slate-600">
+                    or
+                  </span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0087D2]/20 text-xs font-bold text-[#0087D2]">
+                    B
+                  </span>
+                  <p className="min-w-0 flex-1 pt-0.5">
+                    Minimum due (from the Bank) if it is higher.
+                  </p>
+                </div>
+                <p className="pt-1">
+                  You will be able to adjust the Actual Payment during the payment process.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100/90 text-sm font-bold text-orange-700/90">
+              2
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-bold text-orange-700/90">From Reserve</h4>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                As you were spending on the card, we were pulling money from your Living Expenses and
+                Bills funds to cover those new purchases and placing it into a reserve. This is YOUR
+                MONEY already set aside previously to apply to this CC payment.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+              3
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-bold text-emerald-700">Additional Needed</h4>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                If the Proposed Payment is more than what was set aside in Reserve, this is where we
+                have to pull some money from this month&apos;s funds to make up the gap.
+              </p>
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="items-center border-t border-slate-100 bg-white px-6 py-4 sm:justify-between">
+          <p className={cn("flex items-center gap-1.5 text-lg font-medium italic text-orange-700/90", myJourneyNav.className)}>
+            You&apos;ve already done the hard part.
             <Sparkles className="h-4 w-4 text-orange-700/80" aria-hidden />
           </p>
           <button
@@ -663,9 +871,11 @@ export function LogbookWorkspace() {
   const [budgets, setBudgets] = useState<Record<string, number>>({})
   const [billsReviewed, setBillsReviewed] = useState(false)
   const [planDetailsOpen, setPlanDetailsOpen] = useState(false)
+  const [creditPaymentDetailsOpen, setCreditPaymentDetailsOpen] = useState(false)
+  const [planCardLink, setPlanCardLink] = useState<"bills" | "living" | "credit" | null>(null)
   const [shortfallAck, setShortfallAck] = useState(false)
   const [lockNote, setLockNote] = useState<string | null>(null)
-  const [billPaidOverrides, setBillPaidOverrides] = useState<Record<string, boolean>>({})
+  const [billPaidOverrides] = useState<Record<string, boolean>>({})
   const [billAmountOverrides, setBillAmountOverrides] = useState<Record<string, number>>({})
   const [billDueOverrides, setBillDueOverrides] = useState<Record<string, number>>({})
   const [billModeOverrides, setBillModeOverrides] = useState<
@@ -673,6 +883,24 @@ export function LogbookWorkspace() {
   >({})
   const [livingEditId, setLivingEditId] = useState<string | null>(null)
   const [livingTargetDraft, setLivingTargetDraft] = useState("")
+  const [livingNameDraft, setLivingNameDraft] = useState("")
+  const [renamingLiving, setRenamingLiving] = useState(false)
+  const [livingDeleteOpen, setLivingDeleteOpen] = useState(false)
+  const [removedLivingIds, setRemovedLivingIds] = useState<Partial<Record<MonthLabel, string[]>>>({})
+  const [livingNameOverrides, setLivingNameOverrides] = useState<Record<string, string>>({})
+  const [paidBillsCollapsed, setPaidBillsCollapsed] = useState(false)
+  const [addedBills, setAddedBills] = useState<SnapshotBill[]>([])
+  const [newBillOpen, setNewBillOpen] = useState(false)
+  const [newBillName, setNewBillName] = useState("")
+  const [newBillAmount, setNewBillAmount] = useState("")
+  const [newBillDue, setNewBillDue] = useState("")
+  const [newBillRecurring, setNewBillRecurring] = useState(true)
+  const [addedLivingByMonth, setAddedLivingByMonth] = useState<
+    Partial<Record<MonthLabel, SnapshotLivingLine[]>>
+  >({})
+  const [newExpenseOpen, setNewExpenseOpen] = useState(false)
+  const [newExpenseName, setNewExpenseName] = useState("")
+  const [newExpenseFunded, setNewExpenseFunded] = useState("")
   const [billEditId, setBillEditId] = useState<string | null>(null)
   const [billAmountDraft, setBillAmountDraft] = useState("")
   const [billDueDraft, setBillDueDraft] = useState("")
@@ -753,7 +981,8 @@ export function LogbookWorkspace() {
   }, [activityOverrides, assignments, selectedMonth])
 
   const livingLines = useMemo(() => {
-    return LIVING_FUNDS.map((line) => {
+    const removed = new Set(removedLivingIds[selectedMonth] ?? [])
+    const withMonthState = (line: SnapshotLivingLine) => {
       let delta = 0
       for (const txn of MONTH_ACTIVITY) {
         const effective = countsTowardMonth(txn) ? displayCategory(txn) : null
@@ -761,9 +990,29 @@ export function LogbookWorkspace() {
         if (txn.categoryId === line.id) delta -= txn.amount
       }
       const budgeted = budgets[line.id] ?? line.target
-      return { ...line, target: budgeted, spent: line.spent + delta }
-    })
-  }, [activityOverrides, assignments, budgets, selectedMonth])
+      const renamed = livingNameOverrides[`${selectedMonth}:${line.id}`]?.trim()
+      return {
+        ...line,
+        name: renamed || line.name,
+        shortName: renamed || line.shortName,
+        target: budgeted,
+        spent: line.spent + delta,
+      }
+    }
+    const fromTemplate = LIVING_FUNDS.filter((line) => !removed.has(line.id)).map(withMonthState)
+    const addedThisMonth = (addedLivingByMonth[selectedMonth] ?? [])
+      .filter((line) => !removed.has(line.id))
+      .map(withMonthState)
+    return [...fromTemplate, ...addedThisMonth]
+  }, [
+    activityOverrides,
+    addedLivingByMonth,
+    assignments,
+    budgets,
+    livingNameOverrides,
+    removedLivingIds,
+    selectedMonth,
+  ])
 
   const assignOptions = useMemo(() => {
     const extras: { id: string; label: string }[] = []
@@ -817,6 +1066,9 @@ export function LogbookWorkspace() {
 
   const livingUnspent = livingLines.reduce((sum, line) => sum + Math.max(0, line.target - line.spent), 0)
   const livingLiability = livingLines.reduce((sum, line) => sum + Math.max(line.target, line.spent), 0)
+  const livingFundedTotal = livingLines.reduce((sum, line) => sum + line.target, 0)
+  const livingSpentTotal = livingLines.reduce((sum, line) => sum + line.spent, 0)
+  const livingRemainingTotal = livingFundedTotal - livingSpentTotal
   const unassignedSpent = MONTH_ACTIVITY.reduce((sum, txn) => {
     if (!countsTowardMonth(txn)) return sum
     if (txn.billId || displayCategory(txn)?.startsWith("bill:")) return sum
@@ -824,16 +1076,31 @@ export function LogbookWorkspace() {
     return sum + txn.amount
   }, 0)
   const livingFundsEquation = livingLiability + unassignedSpent
-  const expectedNet =
-    SNAPSHOT_STARTING_FUNDS - snapshotBills.total - livingLiability - unassignedSpent
-  const projectedCashout = expectedNet + livingUnspent
-  const stashAfter = STASH_BALANCE + projectedCashout
-
   const tier1Due = cycles
     .filter((cycle) => cycle.tier === 1 && cycle.dueDateLabel)
     .sort((a, b) => creditDueSortKey(a.dueDateLabel!) - creditDueSortKey(b.dueDateLabel!))
   const tier2Open = cycles.filter((cycle) => cycle.tier === 2)
   const tier1Short = tier1Due.filter((cycle) => cycle.reservedPaymentFunds < cycle.minimumDue)
+  const creditPaymentRows = tier1Due.map((cycle) => {
+    const lastCycleTotalSpend = cycle.newSpending
+    const minDueFromIssuer = cycle.minimumDue
+    const fromReserve = cycle.reservedPaymentFunds
+    const payment = Math.max(lastCycleTotalSpend, minDueFromIssuer)
+    const additionalNeeded = Math.max(0, payment - fromReserve)
+    return { ...cycle, payment, fromReserve, additionalNeeded }
+  })
+  const additionalFundsNeededForCards = creditPaymentRows.reduce(
+    (sum, row) => sum + row.additionalNeeded,
+    0,
+  )
+  const expectedNet =
+    SNAPSHOT_STARTING_FUNDS -
+    snapshotBills.total -
+    livingLiability -
+    additionalFundsNeededForCards -
+    unassignedSpent
+  const projectedCashout = expectedNet + livingUnspent
+  const stashAfter = STASH_BALANCE + projectedCashout
 
   const activityRows = [...MONTH_ACTIVITY].sort((a, b) => b.day - a.day)
   const uncategorized = activityRows.filter((txn) => countsTowardMonth(txn) && !displayCategory(txn))
@@ -879,13 +1146,14 @@ export function LogbookWorkspace() {
   const incomeTotal = incomeLines.reduce((sum, line) => sum + line.amount, 0)
 
   const budgetBills = useMemo(() => {
-    return PLAN_BILLS.map((bill) => ({
+    const withOverrides = (bill: SnapshotBill) => ({
       ...bill,
       amount: billAmountOverrides[bill.id] ?? bill.amount,
       dueDay: billDueOverrides[bill.id] ?? bill.dueDay,
       paymentMode: billModeOverrides[bill.id] ?? bill.paymentMode,
-    }))
-  }, [billAmountOverrides, billDueOverrides, billModeOverrides])
+    })
+    return [...PLAN_BILLS.map(withOverrides), ...addedBills.map(withOverrides)]
+  }, [addedBills, billAmountOverrides, billDueOverrides, billModeOverrides])
 
   const budgetBillStatus = (bill: SnapshotBill): BillStatus => {
     if (billPaidOverrides[bill.id] === true) return "paid"
@@ -904,33 +1172,112 @@ export function LogbookWorkspace() {
     }
   }, [budgetBills, billPaidOverrides, isArchivedMonth])
 
-  const unpaidBudgetBills = useMemo(
+  const orderedBudgetBills = useMemo(
     () =>
-      budgetBills
-        .filter((bill) => budgetBillStatus(bill) !== "paid")
-        .sort((a, b) => a.dueDay - b.dueDay || a.listName.localeCompare(b.listName)),
-    [budgetBills, billPaidOverrides, isArchivedMonth],
-  )
-  const paidBudgetBills = useMemo(
-    () =>
-      budgetBills
-        .filter((bill) => budgetBillStatus(bill) === "paid")
-        .sort((a, b) => a.dueDay - b.dueDay || a.listName.localeCompare(b.listName)),
-    [budgetBills, billPaidOverrides, isArchivedMonth],
+      [...budgetBills].sort(
+        (a, b) => a.dueDay - b.dueDay || a.listName.localeCompare(b.listName),
+      ),
+    [budgetBills],
   )
 
+  const paidBudgetBills = orderedBudgetBills.filter((bill) => budgetBillStatus(bill) === "paid")
+  const paidBillsTotal = paidBudgetBills.reduce((sum, bill) => sum + bill.amount, 0)
+  const visibleBudgetBills = (() => {
+    const rows: Array<
+      { kind: "paid-total" } | { kind: "bill"; bill: (typeof orderedBudgetBills)[number] }
+    > = []
+    let foldedPaid = false
+    for (const bill of orderedBudgetBills) {
+      if (paidBillsCollapsed && budgetBillStatus(bill) === "paid") {
+        if (!foldedPaid) {
+          rows.push({ kind: "paid-total" })
+          foldedPaid = true
+        }
+        continue
+      }
+      rows.push({ kind: "bill", bill })
+    }
+    return rows
+  })()
+
   const editingLiving = livingLines.find((line) => line.id === livingEditId) ?? null
+  const editingLivingGlyph = editingLiving ? SNAPSHOT_LIVING_GLYPH[editingLiving.id] : null
+  const editingLivingFunded = Math.max(0, Number(livingTargetDraft) || 0)
+  const editingLivingRemaining = editingLiving ? editingLivingFunded - editingLiving.spent : 0
   const editingBill = budgetBills.find((bill) => bill.id === billEditId) ?? null
 
   const openLivingEdit = (line: SnapshotLivingLine) => {
     setLivingEditId(line.id)
     setLivingTargetDraft(String(line.target))
+    setLivingNameDraft(line.name)
+    setRenamingLiving(false)
+    setLivingDeleteOpen(false)
+  }
+
+  const closeLivingEdit = () => {
+    setLivingEditId(null)
+    setRenamingLiving(false)
+    setLivingDeleteOpen(false)
   }
 
   const saveLivingEdit = () => {
     if (!livingEditId) return
+    const trimmed = livingNameDraft.trim()
+    if (trimmed) {
+      setLivingNameOverrides((current) => ({
+        ...current,
+        [`${selectedMonth}:${livingEditId}`]: trimmed,
+      }))
+    }
     setLivingBudget(livingEditId, Math.max(0, Number(livingTargetDraft) || 0))
-    setLivingEditId(null)
+    closeLivingEdit()
+  }
+
+  const confirmLivingDelete = () => {
+    if (!editingLiving) return
+    const id = editingLiving.id
+    const isMonthOnly = id.startsWith("added-living-")
+    if (isMonthOnly) {
+      setAddedLivingByMonth((current) => ({
+        ...current,
+        [selectedMonth]: (current[selectedMonth] ?? []).filter((line) => line.id !== id),
+      }))
+    } else {
+      setRemovedLivingIds((current) => {
+        const existing = current[selectedMonth] ?? []
+        if (existing.includes(id)) return current
+        return { ...current, [selectedMonth]: [...existing, id] }
+      })
+    }
+    closeLivingEdit()
+  }
+
+  const openNewExpense = () => {
+    setNewExpenseName("")
+    setNewExpenseFunded("")
+    setNewExpenseOpen(true)
+  }
+
+  const saveNewExpense = () => {
+    const name = newExpenseName.trim()
+    if (!name) return
+    const funded = Math.max(0, Number(newExpenseFunded) || 0)
+    const id = `added-living-${selectedMonth}-${Date.now()}`
+    setAddedLivingByMonth((current) => ({
+      ...current,
+      [selectedMonth]: [
+        ...(current[selectedMonth] ?? []),
+        {
+          id,
+          name,
+          shortName: name,
+          target: funded,
+          spent: 0,
+        },
+      ],
+    }))
+    setBudgets((current) => ({ ...current, [id]: funded }))
+    setNewExpenseOpen(false)
   }
 
   const openBillEdit = (bill: SnapshotBill) => {
@@ -953,8 +1300,30 @@ export function LogbookWorkspace() {
     setBillEditId(null)
   }
 
-  const toggleBillPaid = (billId: string, currentlyPaid: boolean) => {
-    setBillPaidOverrides((current) => ({ ...current, [billId]: !currentlyPaid }))
+  const openNewBill = () => {
+    setNewBillName("")
+    setNewBillAmount("")
+    setNewBillDue("")
+    setNewBillRecurring(true)
+    setNewBillOpen(true)
+  }
+
+  const saveNewBill = () => {
+    const name = newBillName.trim()
+    if (!name) return
+    const amount = Math.max(0, Number(newBillAmount) || 0)
+    const dueDay = Math.min(28, Math.max(1, Math.round(Number(newBillDue) || 1)))
+    setAddedBills((current) => [
+      ...current,
+      {
+        id: `added-${current.length}-${dueDay}-${amount}`,
+        listName: name,
+        dueDay,
+        amount,
+        paymentMode: newBillRecurring ? "autodraft" : "manual",
+      },
+    ])
+    setNewBillOpen(false)
   }
 
   const categorizationClear = uncategorized.length === 0
@@ -1079,10 +1448,10 @@ export function LogbookWorkspace() {
         ) : null}
 
         {!allYearSelected && activeTab === "plan" ? (
-          <div className="grid grid-cols-[400px_640px] items-start gap-4">
+          <div className="grid grid-cols-2 items-start gap-4">
             <div className="min-w-0">
               <article
-                className="overflow-hidden rounded-[2px] border border-slate-300 bg-white font-sans"
+                className={cn("overflow-hidden font-sans", budgetCardShell)}
                 aria-labelledby="budget-plan-heading"
               >
                 <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-300 bg-white px-3 py-2.5">
@@ -1110,56 +1479,129 @@ export function LogbookWorkspace() {
                     </span>
                   </div>
                   <div className="mt-3 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600">
-                        <FileText className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                    <div
+                      className="group flex cursor-default items-center justify-between gap-3"
+                      onMouseEnter={() => setPlanCardLink("bills")}
+                      onMouseLeave={() => setPlanCardLink((current) => (current === "bills" ? null : current))}
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600 transition-colors duration-150 group-hover:text-[#0087D2]">
+                        {planCardLink === "bills" ? (
+                          <ArrowRight className="h-4 w-4 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
+                        ) : (
+                          <FileText className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                        )}
                         Bills
                       </span>
                       <span className={cn("shrink-0 text-sm font-medium tabular-nums text-slate-700", amountInter.className)}>
                         {fmtSignedDollars(-snapshotBills.total)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600">
-                        <ChartColumn className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
-                        Living Funds
+                    <div
+                      className="group flex cursor-default items-center justify-between gap-3"
+                      onMouseEnter={() => setPlanCardLink("living")}
+                      onMouseLeave={() => setPlanCardLink((current) => (current === "living" ? null : current))}
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600 transition-colors duration-150 group-hover:text-[#0087D2]">
+                        {planCardLink === "living" ? (
+                          <ArrowDown className="h-4 w-4 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
+                        ) : (
+                          <ChartColumn className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                        )}
+                        Living Expenses
                       </span>
                       <span className={cn("shrink-0 text-sm font-medium tabular-nums text-slate-700", amountInter.className)}>
                         {fmtSignedDollars(-livingLiability)}
                       </span>
                     </div>
+                    {additionalFundsNeededForCards > 0 ? (
+                      <div
+                        className="group flex cursor-default items-center justify-between gap-3"
+                        onMouseEnter={() => setPlanCardLink("credit")}
+                        onMouseLeave={() => setPlanCardLink((current) => (current === "credit" ? null : current))}
+                      >
+                        <span className="inline-flex min-w-0 items-center gap-1.5 pl-8 text-[13px] text-slate-600 transition-colors duration-150 group-hover:text-[#0087D2]">
+                          {planCardLink === "credit" ? (
+                            <ArrowDown className="h-4 w-4 shrink-0 stroke-[1.5] text-[#0087D2]" aria-hidden />
+                          ) : (
+                            <CreditCard className="h-4 w-4 shrink-0 stroke-[1.5] text-slate-500" aria-hidden />
+                          )}
+                          Additional Needed for Credit Card Payments
+                        </span>
+                        <span className={cn("shrink-0 text-sm font-medium tabular-nums text-slate-700", amountInter.className)}>
+                          {fmtSignedDollars(-additionalFundsNeededForCards)}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-                <div className="flex items-baseline justify-between gap-3 border-t border-emerald-200 bg-emerald-50 px-4 py-2.5">
-                  <span className="min-w-0 pl-5 text-sm font-medium italic text-slate-700">
-                    Expected Cashout
+                <div className="border-t border-emerald-200 bg-emerald-50 px-4 py-2.5">
+                  <div className="relative flex items-baseline justify-end">
+                    <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center text-sm font-medium italic text-slate-700">
+                      Expected Cashout
+                      <span
+                        className={cn(
+                          "ml-2 inline-flex items-baseline font-semibold italic text-orange-700/90",
+                          myJourneyNav.className,
+                          "text-xl",
+                        )}
+                      >
+                        in{" "}
+                        <span className="mx-1 text-[1.3em] font-bold leading-none">{daysToCashout}</span>
+                        {daysToCashout === 1 ? "day" : "days"}
+                      </span>
+                    </span>
                     <span
                       className={cn(
-                        "ml-2 inline-flex items-baseline font-semibold italic text-orange-700/90",
-                        myJourneyNav.className,
-                        "text-xl",
+                        "relative shrink-0 text-lg font-semibold tabular-nums",
+                        amountInter.className,
+                        expectedNet < 0 ? "text-rose-700" : "text-emerald-700",
                       )}
                     >
-                      in{" "}
-                      <span className="mx-1 text-[1.3em] font-bold leading-none">{daysToCashout}</span>
-                      {daysToCashout === 1 ? "day" : "days"}
+                      {expectedNet < 0 ? fmtSignedDollars(expectedNet) : fmtDollars(expectedNet)}
                     </span>
-                  </span>
-                  <span className={cn("shrink-0 text-lg font-semibold tabular-nums text-emerald-700", amountInter.className)}>
-                    {fmtDollars(expectedNet)}
-                  </span>
+                  </div>
+                  {expectedNet < 0 ? (
+                    <p className="mt-1.5 pl-5 text-[11px] leading-snug text-slate-600">
+                      Shortfall at the end of the month will need to be covered from your Stash. You can adjust your budget to prevent this.
+                    </p>
+                  ) : null}
                 </div>
               </article>
 
               <article
-                className="mt-4 rounded-[2px] border border-stone-200 bg-white"
-                aria-label="Living Funds"
+                className={cn(
+                  "mt-4 overflow-hidden font-sans transition-[background-color,box-shadow,border-color] duration-150",
+                  budgetCardShell,
+                )}
+                style={planCardLink === "living" ? planCardLinkStyle : undefined}
+                aria-label="Living Expenses"
               >
-                <div className="border-b border-stone-200 px-3 py-2.5">
-                  <h3 className="flex min-w-0 items-center gap-2 font-sans text-[15px] font-bold tracking-tight text-slate-600">
+                <div className="relative flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-3 py-2.5">
+                  <h3 className="relative z-10 flex min-w-0 items-center gap-2 text-[15px] font-bold tracking-tight text-slate-600">
                     <ChartColumn className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
-                    Living Funds
+                    Living Expenses
                   </h3>
+                  <button
+                    type="button"
+                    onClick={openNewExpense}
+                    className="relative z-10 inline-flex shrink-0 cursor-pointer items-center font-sans text-[11px] font-semibold text-[#0087D2] underline-offset-2 hover:underline"
+                  >
+                    + New Category
+                  </button>
+                </div>
+                <div className="px-3">
+                <div
+                  className={cn(
+                    livingExpenseCols,
+                    "-mx-2 px-2 py-1.5 text-[10px] font-medium leading-tight text-slate-400",
+                  )}
+                >
+                  <span className="min-w-0">
+                    <span className="sr-only">Category</span>
+                  </span>
+                  <span className="whitespace-nowrap text-right">Total Funded</span>
+                  <span className="whitespace-nowrap text-right">Spent</span>
+                  <span className="whitespace-nowrap text-right">Remaining</span>
                 </div>
                 <ul className="divide-y divide-stone-100">
                   {livingLines.map((line) => {
@@ -1172,143 +1614,334 @@ export function LogbookWorkspace() {
                         <button
                           type="button"
                           onClick={() => openLivingEdit(line)}
-                          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-stone-50"
+                          className={cn(
+                            livingExpenseCols,
+                            budgetRowHover,
+                            "cursor-pointer py-2 text-left",
+                          )}
                         >
-                          {Icon ? (
-                            <Icon
-                              className="h-3.5 w-3.5 shrink-0 stroke-[1.5] text-slate-500"
-                              aria-hidden
-                            />
-                          ) : null}
-                          <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
-                            {line.name}
-                          </span>
-                          {isOver ? (
-                            <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-rose-600">
-                              +{fmtDollars(Math.abs(remaining))} Over
+                          <span className="inline-flex min-w-0 items-center gap-1.5">
+                            {Icon ? (
+                              <Icon
+                                className={cn("h-4 w-4 shrink-0 stroke-[1.5]", glyph.className)}
+                                aria-hidden
+                              />
+                            ) : (
+                              <span className="h-4 w-4 shrink-0" aria-hidden />
+                            )}
+                            <span className="min-w-0 truncate text-[13px] text-slate-800">
+                              {line.name}
                             </span>
-                          ) : null}
-                          <span className="shrink-0 font-mono text-sm tabular-nums text-slate-700">
+                          </span>
+                          <span
+                            className={cn(
+                              "text-right text-[11px] font-medium tabular-nums text-slate-700",
+                              amountInter.className,
+                            )}
+                          >
                             {fmtDollars(line.target)}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-right text-[11px] font-medium tabular-nums text-slate-500",
+                              amountInter.className,
+                            )}
+                          >
+                            {fmtDollars(line.spent)}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-right text-[11px] tabular-nums",
+                              amountInter.className,
+                              isOver ? "font-semibold text-rose-700" : "font-medium text-slate-500",
+                            )}
+                          >
+                            {isOver ? `-${fmtDollars(remaining)}` : fmtDollars(remaining)}
                           </span>
                         </button>
                       </li>
                     )
                   })}
                 </ul>
+                </div>
+                <div
+                  className={cn(
+                    livingExpenseCols,
+                    "border-t border-sky-200 bg-sky-100/80 px-3 py-2 text-[13px] font-semibold text-slate-800",
+                  )}
+                >
+                  <span className="text-center uppercase tracking-wide">Total</span>
+                  <span
+                    className={cn(
+                      "text-right text-[11px] font-semibold tabular-nums text-slate-700",
+                      amountInter.className,
+                    )}
+                  >
+                    {fmtDollars(livingFundedTotal)}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-right text-[11px] font-semibold tabular-nums text-slate-700",
+                      amountInter.className,
+                    )}
+                  >
+                    {fmtDollars(livingSpentTotal)}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-right text-[11px] font-semibold tabular-nums",
+                      amountInter.className,
+                      livingRemainingTotal < 0 ? "text-rose-700" : "text-emerald-700",
+                    )}
+                  >
+                    {livingRemainingTotal < 0
+                      ? `-${fmtDollars(livingRemainingTotal)}`
+                      : fmtDollars(livingRemainingTotal)}
+                  </span>
+                </div>
+              </article>
+
+              <article
+                className={cn(
+                  "mt-4 overflow-hidden font-sans transition-[background-color,box-shadow,border-color] duration-150",
+                  budgetCardShell,
+                )}
+                style={planCardLink === "credit" ? planCardLinkStyle : undefined}
+                aria-label="Credit Card Payments"
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-3 py-2.5">
+                  <h3 className="flex min-w-0 items-center gap-2 text-[15px] font-bold tracking-tight text-slate-600">
+                    <CreditCard className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
+                    Credit Card Payments
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setCreditPaymentDetailsOpen(true)}
+                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-[10px] font-semibold leading-snug text-[#0087D2] underline-offset-2 hover:underline"
+                  >
+                    <span>Payment Details</span>
+                    <ChevronRight className="h-3 w-3 shrink-0 stroke-[2]" aria-hidden />
+                  </button>
+                </div>
+                <div className="px-3">
+                  <div
+                    className={cn(
+                      creditPayCols,
+                      "py-1.5 text-[10px] font-medium leading-tight text-slate-400",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="sr-only">Card</span>
+                    </span>
+                    <span className="text-right">Payment</span>
+                    <span className="text-right">From Reserve</span>
+                    <span className="text-right">Additional Needed</span>
+                  </div>
+                  <ul className="divide-y divide-stone-100">
+                    {creditPaymentRows.map((cycle) => (
+                      <li key={cycle.id} className={cn(creditPayCols, "py-2")}>
+                        <span className="flex min-w-0 items-center gap-3.5">
+                          {cycle.dueDateLabel ? (
+                            <span className="flex w-10 shrink-0 flex-col items-center">
+                              <span className="text-[9px] font-semibold uppercase leading-none tracking-wide text-slate-400">
+                                Due
+                              </span>
+                              <span
+                                className={cn(
+                                  "mt-0.5 text-center text-[11px] font-medium tabular-nums text-slate-600",
+                                  amountInter.className,
+                                )}
+                              >
+                                {fmtCreditDueDisplay(cycle.dueDateLabel)}
+                              </span>
+                            </span>
+                          ) : null}
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-[13px] text-slate-800">
+                              {cycle.cardLabel}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex h-4 shrink-0 items-center rounded-[2px] border px-1 text-[10px] font-medium tabular-nums leading-none",
+                                amountInter.className,
+                                creditNetworkPillClass(cycle.cardLabel),
+                              )}
+                              aria-hidden
+                            >
+                              {cycle.lastFour}
+                            </span>
+                          </span>
+                        </span>
+                        <span
+                          className={cn(
+                            "text-right text-[11px] font-medium tabular-nums text-slate-700",
+                            amountInter.className,
+                          )}
+                        >
+                          {fmtDollars(cycle.payment)}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-right text-[11px] font-medium tabular-nums text-slate-500",
+                            amountInter.className,
+                          )}
+                        >
+                          {fmtDollars(cycle.fromReserve)}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-right text-[11px] font-medium tabular-nums text-slate-700",
+                            amountInter.className,
+                          )}
+                        >
+                          {fmtDollars(cycle.additionalNeeded)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div
+                  className={cn(
+                    creditPayCols,
+                    "border-t border-sky-200 bg-sky-100/80 px-3 py-2 text-[13px] font-semibold text-slate-800",
+                  )}
+                >
+                  <span className="col-span-3 flex min-w-0 justify-center px-2 text-center leading-snug">
+                    Additional Funds Needed for Credit Card Payments
+                  </span>
+                  <span
+                    className={cn(
+                      "text-right text-[11px] font-semibold tabular-nums text-slate-800",
+                      amountInter.className,
+                    )}
+                  >
+                    {fmtDollars(additionalFundsNeededForCards)}
+                  </span>
+                </div>
               </article>
             </div>
 
             <article
-              className="flex h-[calc(100vh-160px)] min-w-0 flex-col rounded-[2px] border border-stone-200 bg-white"
+              className={cn(
+                "flex min-w-0 flex-col transition-[background-color,box-shadow,border-color] duration-150",
+                budgetCardShell,
+              )}
+              style={planCardLink === "bills" ? planCardLinkStyle : undefined}
               aria-label="Bills"
             >
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-3 py-2.5">
-                <h3 className="flex min-w-0 items-center gap-2 font-sans text-[15px] font-bold tracking-tight text-slate-600">
+              <div className="relative flex shrink-0 items-center gap-2 border-b border-stone-200 px-3 py-2.5">
+                <h3 className="relative z-10 flex min-w-0 flex-1 items-center gap-2 font-sans text-[15px] font-bold tracking-tight text-slate-600">
                   <FileText className="h-4 w-4 shrink-0 stroke-[1.75] text-[#0087D2]" aria-hidden />
                   Bills
                 </h3>
-                <span className="font-mono text-xs tabular-nums text-slate-500">
-                  {fmtDollars(planBillTotals.total)} Total
-                  <span className="px-1 text-slate-300" aria-hidden>
-                    |
+                {paidBudgetBills.length > 0 ? (
+                  <label className="pointer-events-auto absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center gap-1.5 whitespace-nowrap font-sans text-[11px] font-medium text-slate-500">
+                    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[2px] border border-slate-300 bg-transparent">
+                      {!paidBillsCollapsed ? (
+                        <Check
+                          className="h-2.5 w-2.5 stroke-[1.5] text-slate-500"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={!paidBillsCollapsed}
+                      onChange={(event) => setPaidBillsCollapsed(!event.target.checked)}
+                      className="sr-only"
+                    />
+                    Show paid bills
+                  </label>
+                ) : null}
+                <span className="relative z-10 inline-flex shrink-0 items-baseline gap-1 font-sans text-xs font-medium text-slate-500">
+                  Total{" "}
+                  <span className={cn("text-[11px] font-medium tabular-nums text-slate-700", amountInter.className)}>
+                    {fmtDollars(planBillTotals.total)}
                   </span>
-                  {fmtDollars(planBillTotals.unpaid)} Unpaid
                 </span>
+                <button
+                  type="button"
+                  onClick={openNewBill}
+                  className="relative z-10 inline-flex w-[4.5rem] shrink-0 cursor-pointer items-center justify-end font-sans text-[11px] font-semibold text-[#0087D2] underline-offset-2 hover:underline"
+                >
+                  + New Bill
+                </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <ul>
-                  {unpaidBudgetBills.map((bill) => {
-                    const status = budgetBillStatus(bill)
+              <ul className="px-3">
+                {visibleBudgetBills.map((row) => {
+                  if (row.kind === "paid-total") {
                     return (
-                      <li key={bill.id} className="border-b border-stone-100">
+                      <li
+                        key="paid-bills-total"
+                        className="-mx-3 border-b border-amber-100/80 bg-amber-50/60 px-3 transition-colors duration-150 hover:bg-sky-50/90"
+                      >
                         <button
                           type="button"
-                          onClick={() => openBillEdit(bill)}
-                          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-stone-50"
+                          onClick={() => setPaidBillsCollapsed(false)}
+                          aria-expanded={false}
+                          aria-label="Show paid bills"
+                          className="flex w-full cursor-pointer items-center gap-2 py-2 text-left"
                         >
-                          <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-slate-500">
-                            {bill.dueDay}
+                          <span className="w-6 shrink-0" aria-hidden />
+                          <span
+                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate font-sans text-sm text-slate-600"
+                            style={{ fontStyle: "italic" }}
+                          >
+                            {paidBudgetBills.length} Paid Bills
+                            <ChevronRight className="h-3 w-3 shrink-0 stroke-[2] text-[#0087D2]" aria-hidden />
                           </span>
-                          <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
-                            {bill.listName}
+                          <span
+                            className={cn(
+                              "shrink-0 text-[11px] font-medium tabular-nums text-slate-700",
+                              amountInter.className,
+                            )}
+                          >
+                            {fmtDollars(paidBillsTotal)}
                           </span>
-                          <span className="shrink-0 font-mono text-xs tabular-nums text-slate-700">
-                            {fmtDollars(bill.amount)}
-                          </span>
-                          {status === "pay" || status === "pending" || status === "autodraft" ? (
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                toggleBillPaid(bill.id, false)
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault()
-                                  event.stopPropagation()
-                                  toggleBillPaid(bill.id, false)
-                                }
-                              }}
-                              className="inline-flex w-[4.5rem] shrink-0 cursor-pointer items-center justify-end font-mono text-[10px] font-semibold uppercase tracking-wide text-[#0087D2]"
-                            >
-                              {status === "autodraft" ? "Draft" : "Pay"}
-                            </span>
-                          ) : (
-                            <BillStatusGutter status={status} />
-                          )}
+                          <BillStatusGutter status="paid" />
                         </button>
                       </li>
                     )
-                  })}
-                </ul>
-                {paidBudgetBills.length > 0 ? (
-                  <>
-                    <div className="border-t border-stone-300" aria-hidden />
-                    <ul>
-                      {paidBudgetBills.map((bill) => (
-                        <li key={bill.id} className="border-b border-stone-100">
-                          <button
-                            type="button"
-                            onClick={() => openBillEdit(bill)}
-                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-stone-50"
-                          >
-                            <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-slate-500">
-                              {bill.dueDay}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
-                              {bill.listName}
-                            </span>
-                            <span className="shrink-0 font-mono text-xs tabular-nums text-slate-700">
-                              {fmtDollars(bill.amount)}
-                            </span>
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                toggleBillPaid(bill.id, true)
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault()
-                                  event.stopPropagation()
-                                  toggleBillPaid(bill.id, true)
-                                }
-                              }}
-                              className="inline-flex w-[4.5rem] shrink-0 cursor-pointer items-center justify-end gap-1 font-mono text-[10px] uppercase tracking-wide text-emerald-700"
-                            >
-                              <ReceivedCheckIcon className="h-3.5 w-3.5 text-emerald-600" />
-                              Paid
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                ) : null}
-              </div>
+                  }
+                  const { bill } = row
+                  const status = budgetBillStatus(bill)
+                  return (
+                    <li key={bill.id} className="border-b border-stone-100">
+                      <button
+                        type="button"
+                        onClick={() => openBillEdit(bill)}
+                        className={cn(
+                          "flex w-full cursor-pointer items-center gap-2 py-2 text-left",
+                          budgetRowHover,
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "w-6 shrink-0 text-[11px] font-normal tabular-nums text-slate-500",
+                            amountInter.className,
+                          )}
+                        >
+                          {bill.dueDay}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-sans text-sm text-slate-800">
+                          {bill.listName}
+                        </span>
+                        <span
+                          className={cn(
+                            "shrink-0 text-[11px] font-medium tabular-nums text-slate-700",
+                            amountInter.className,
+                          )}
+                        >
+                          {fmtDollars(bill.amount)}
+                        </span>
+                        <BillStatusGutter status={status} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             </article>
           </div>
         ) : null}
@@ -1437,7 +2070,7 @@ export function LogbookWorkspace() {
                 rightClassName="text-sm text-slate-800"
               />
               <div className="mb-1 mt-4 border-b border-slate-100 pb-2">
-                <h4 className="text-sm font-semibold text-slate-900">Living Funds & The Sweep</h4>
+                <h4 className="text-sm font-semibold text-slate-900">Living Expenses & The Sweep</h4>
               </div>
               {livingLines.map((line) => {
                 const remaining = line.target - line.spent
@@ -1459,6 +2092,12 @@ export function LogbookWorkspace() {
                   rightClassName="text-sm font-semibold text-rose-600"
                 />
               ) : null}
+              <Leader
+                left="Credit card payments"
+                meta="additional funds beyond reserve"
+                right={fmtDollars(additionalFundsNeededForCards)}
+                rightClassName="text-sm text-slate-800"
+              />
               <Leader
                 left="Expected Cashout"
                 meta="if every planned dollar is spent"
@@ -1630,65 +2269,346 @@ export function LogbookWorkspace() {
         monthName={monthName}
         prevMonthName={prevMonthName}
         livingLines={livingLines}
+        creditPayments={creditPaymentRows.map((cycle) => ({
+          id: cycle.id,
+          label: `${cycle.cardLabel} · ${cycle.lastFour}`,
+          additionalNeeded: cycle.additionalNeeded,
+        }))}
         expectedCashout={expectedNet}
         daysToCashout={daysToCashout}
       />
 
-      <Dialog open={!!editingLiving} onOpenChange={(open) => !open && setLivingEditId(null)}>
+      <CreditPaymentDetailsDialog
+        open={creditPaymentDetailsOpen}
+        onOpenChange={setCreditPaymentDetailsOpen}
+        monthName={monthName}
+      />
+
+      <Dialog open={!!editingLiving} onOpenChange={(open) => !open && closeLivingEdit()}>
         <DialogContent
-          className="gap-3 rounded-[2px] border border-slate-300 p-4 shadow-md sm:max-w-sm"
+          className="gap-3 rounded-[2px] border border-slate-300 p-4 shadow-md sm:max-w-md"
           showCloseButton
         >
           {editingLiving ? (
             <>
-              <DialogHeader className="gap-1">
-                <DialogTitle className="font-sans text-base font-bold text-slate-900">
-                  {editingLiving.name}
+              <DialogHeader className="gap-1.5">
+                <DialogTitle className="sr-only">
+                  {monthName} {livingNameDraft || editingLiving.name}
                 </DialogTitle>
-                <p className="font-mono text-xs tabular-nums text-slate-500">
-                  {fmtDollars(editingLiving.spent)} spent ·{" "}
-                  {editingLiving.target - editingLiving.spent < 0
-                    ? `${fmtDollars(Math.abs(editingLiving.target - editingLiving.spent))} over`
-                    : `${fmtDollars(editingLiving.target - editingLiving.spent)} left`}
-                </p>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pr-6 font-sans">
+                  <span className="text-base font-bold text-slate-900">{monthName}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-800">
+                    {editingLivingGlyph ? (
+                      <editingLivingGlyph.Icon
+                        className={cn("h-4 w-4 shrink-0 stroke-[1.5]", editingLivingGlyph.className)}
+                        aria-hidden
+                      />
+                    ) : null}
+                    {renamingLiving ? (
+                      <input
+                        autoFocus
+                        value={livingNameDraft}
+                        aria-label="Category name"
+                        onChange={(event) => setLivingNameDraft(event.target.value)}
+                        onBlur={() => setRenamingLiving(false)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault()
+                            setRenamingLiving(false)
+                          }
+                        }}
+                        className="h-6 w-40 min-w-0 rounded-[2px] border border-slate-300 bg-white px-1.5 text-sm font-medium text-slate-800 outline-none focus:border-[#0087D2]"
+                      />
+                    ) : (
+                      <span className="min-w-0 truncate">{livingNameDraft || editingLiving.name}</span>
+                    )}
+                    <button
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        if (renamingLiving) setRenamingLiving(false)
+                      }}
+                      onClick={() => {
+                        if (!renamingLiving) setRenamingLiving(true)
+                      }}
+                      aria-label={renamingLiving ? "Close rename" : "Rename category"}
+                      className={cn(
+                        "shrink-0 cursor-pointer",
+                        renamingLiving
+                          ? "text-rose-400 hover:text-rose-600"
+                          : "text-[11px] font-normal text-slate-400 underline decoration-slate-300 underline-offset-2 hover:text-[#0087D2] hover:decoration-[#0087D2]",
+                      )}
+                    >
+                      {renamingLiving ? (
+                        <X className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+                      ) : (
+                        "rename"
+                      )}
+                    </button>
+                  </span>
+                </div>
               </DialogHeader>
-              <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Target
-                <input
-                  autoFocus
-                  type="number"
-                  min={0}
-                  step={1}
-                  inputMode="numeric"
-                  value={livingTargetDraft}
-                  onChange={(event) => setLivingTargetDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      saveLivingEdit()
-                    }
-                  }}
-                  className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-mono text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]"
-                />
-              </label>
-              <DialogFooter className="gap-2 sm:justify-end">
+              <div className="flex flex-col gap-1">
+                <label className={livingEditCols}>
+                  <span className="font-sans text-[13px] text-slate-700">Total Funded</span>
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="numeric"
+                    aria-label="Total Funded"
+                    value={livingTargetDraft}
+                    onChange={(event) => setLivingTargetDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        saveLivingEdit()
+                      }
+                    }}
+                    className={cn(
+                      "h-7 w-full rounded-[2px] border border-slate-300 bg-white px-1.5 text-right text-[11px] font-medium tabular-nums text-slate-900 outline-none [appearance:textfield] focus:border-[#0087D2] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                      amountInter.className,
+                    )}
+                  />
+                </label>
+                <div className={livingEditCols}>
+                  <span className="font-sans text-[13px] text-slate-600">Spent</span>
+                  <span
+                    className={cn(
+                      "flex h-7 items-center justify-end border border-transparent px-1.5 text-[11px] font-medium tabular-nums text-slate-700",
+                      amountInter.className,
+                    )}
+                  >
+                    {fmtDollars(editingLiving.spent)}
+                  </span>
+                </div>
+                <div className={livingEditCols}>
+                  <span className="font-sans text-[13px] text-slate-600">Remaining</span>
+                  <span
+                    className={cn(
+                      "flex h-7 items-center justify-end border border-transparent px-1.5 text-[11px] tabular-nums",
+                      amountInter.className,
+                      editingLivingRemaining < 0 ? "font-semibold text-rose-700" : "font-medium text-slate-500",
+                    )}
+                  >
+                    {editingLivingRemaining < 0
+                      ? `-${fmtDollars(editingLivingRemaining)}`
+                      : fmtDollars(editingLivingRemaining)}
+                  </span>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:justify-between">
                 <button
                   type="button"
-                  onClick={() => setLivingEditId(null)}
-                  className="cursor-pointer rounded-[2px] border border-slate-300 px-3 py-1.5 font-sans text-xs font-semibold text-slate-600 hover:bg-stone-50"
+                  onClick={() => setLivingDeleteOpen(true)}
+                  className="cursor-pointer self-start rounded-[2px] px-1 py-1.5 font-sans text-xs font-semibold text-rose-700 hover:bg-rose-50"
                 >
-                  Cancel
+                  Delete
                 </button>
-                <button
-                  type="button"
-                  onClick={saveLivingEdit}
-                  className="cursor-pointer rounded-[2px] border border-[#0087D2] bg-[#0087D2] px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-[#006BB3]"
-                >
-                  Save
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeLivingEdit}
+                    className="cursor-pointer rounded-[2px] border border-slate-300 px-3 py-1.5 font-sans text-xs font-semibold text-slate-600 hover:bg-stone-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveLivingEdit}
+                    className="cursor-pointer rounded-[2px] border border-[#0087D2] bg-[#0087D2] px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-[#006BB3]"
+                  >
+                    Save
+                  </button>
+                </div>
               </DialogFooter>
             </>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={livingDeleteOpen} onOpenChange={setLivingDeleteOpen}>
+        <AlertDialogContent className="rounded-[2px] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-sans text-base">Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm leading-relaxed text-slate-600">
+              {editingLiving?.id.startsWith("added-living-") ? (
+                <>
+                  This removes{" "}
+                  <span className="font-medium text-slate-800">
+                    {livingNameDraft || editingLiving?.name}
+                  </span>{" "}
+                  from {monthName}. It was added for this month only and is not on your template
+                  list.
+                </>
+              ) : (
+                <>
+                  This removes{" "}
+                  <span className="font-medium text-slate-800">
+                    {livingNameDraft || editingLiving?.name}
+                  </span>{" "}
+                  from {monthName} only. You can go to the{" "}
+                  <Link
+                    href="/bills-and-income"
+                    className="font-medium text-[#0087D2] underline-offset-2 hover:underline"
+                    onClick={() => setLivingDeleteOpen(false)}
+                  >
+                    Bills &amp; Income
+                  </Link>{" "}
+                  tab to remove{" "}
+                  <span className="font-medium text-slate-800">
+                    {livingNameDraft || editingLiving?.name}
+                  </span>{" "}
+                  from your template list.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="cursor-pointer rounded-[2px] font-sans text-xs">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="cursor-pointer rounded-[2px] bg-rose-600 font-sans text-xs text-white hover:bg-rose-700"
+              onClick={confirmLivingDelete}
+            >
+              Remove from {monthName}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={newExpenseOpen} onOpenChange={setNewExpenseOpen}>
+        <DialogContent
+          className="gap-3 rounded-[2px] border border-slate-300 p-4 shadow-md sm:max-w-sm"
+          showCloseButton
+        >
+          <DialogHeader className="gap-1">
+            <DialogTitle className="font-sans text-base font-bold text-slate-900">
+              New Expense Category
+            </DialogTitle>
+            <p className="font-sans text-xs leading-relaxed text-slate-500">
+              Adds an expense category to {monthName} only. Use Bills &amp; Income to change your
+              recurring template.
+            </p>
+          </DialogHeader>
+          <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Name
+            <input
+              autoFocus
+              type="text"
+              value={newExpenseName}
+              onChange={(event) => setNewExpenseName(event.target.value)}
+              className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-sans text-sm text-slate-900 outline-none focus:border-[#0087D2]"
+            />
+          </label>
+          <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Total Funded
+            <input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              value={newExpenseFunded}
+              onChange={(event) => setNewExpenseFunded(event.target.value)}
+              className={cn(
+                "mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]",
+                amountInter.className,
+              )}
+            />
+          </label>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setNewExpenseOpen(false)}
+              className="cursor-pointer rounded-[2px] border border-slate-300 px-3 py-1.5 font-sans text-xs font-semibold text-slate-600 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveNewExpense}
+              disabled={!newExpenseName.trim()}
+              className="cursor-pointer rounded-[2px] border border-[#0087D2] bg-[#0087D2] px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-[#006BB3] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newBillOpen} onOpenChange={setNewBillOpen}>
+        <DialogContent
+          className="gap-3 rounded-[2px] border border-slate-300 p-4 shadow-md sm:max-w-sm"
+          showCloseButton
+        >
+          <DialogHeader className="gap-1">
+            <DialogTitle className="font-sans text-base font-bold text-slate-900">New Bill</DialogTitle>
+          </DialogHeader>
+          <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Name
+            <input
+              autoFocus
+              type="text"
+              value={newBillName}
+              onChange={(event) => setNewBillName(event.target.value)}
+              className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-sans text-sm text-slate-900 outline-none focus:border-[#0087D2]"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Amount
+              <input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={newBillAmount}
+                onChange={(event) => setNewBillAmount(event.target.value)}
+                className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-mono text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]"
+              />
+            </label>
+            <label className="block font-sans text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Due day
+              <input
+                type="number"
+                min={1}
+                max={28}
+                step={1}
+                inputMode="numeric"
+                value={newBillDue}
+                onChange={(event) => setNewBillDue(event.target.value)}
+                className="mt-1.5 h-9 w-full rounded-[2px] border border-slate-300 bg-white px-2.5 font-mono text-sm tabular-nums text-slate-900 outline-none focus:border-[#0087D2]"
+              />
+            </label>
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 font-sans text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={newBillRecurring}
+              onChange={(event) => setNewBillRecurring(event.target.checked)}
+              className="h-3.5 w-3.5 rounded-[2px] border-slate-300"
+            />
+            Recurring autodraft
+          </label>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setNewBillOpen(false)}
+              className="cursor-pointer rounded-[2px] border border-slate-300 px-3 py-1.5 font-sans text-xs font-semibold text-slate-600 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveNewBill}
+              disabled={!newBillName.trim()}
+              className="cursor-pointer rounded-[2px] border border-[#0087D2] bg-[#0087D2] px-3 py-1.5 font-sans text-xs font-semibold text-white hover:bg-[#006BB3] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

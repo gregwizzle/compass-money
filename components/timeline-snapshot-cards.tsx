@@ -313,7 +313,7 @@ export function TimelineSnapshotCard({
 }: {
   selectedMonth: MonthLabel
   cardRef?: Ref<HTMLElement>
-  /** Logbook living funds, including Curveballs. Falls back to the Timeline demo lines. */
+  /** Logbook living expenses, including Curveballs. Falls back to the Timeline demo lines. */
   livingLines?: SnapshotLivingLine[]
   expectedNet?: number
   onSelectBill?: (bill: SnapshotBill) => void
@@ -444,7 +444,7 @@ export function TimelineSnapshotCard({
                       onSelectLivingLine?.(line)
                     }
                   }}
-                  aria-label={`Open living fund details for ${line.name}`}
+                  aria-label={`Open living expense details for ${line.name}`}
                 >
                   <DottedLeaderRow
                     left={

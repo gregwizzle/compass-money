@@ -1931,7 +1931,7 @@ export function TimelineWorkspace({
                   htmlFor="full-activity-category"
                   className="text-[10px] font-semibold uppercase tracking-wide text-slate-500"
                 >
-                  Category (living funds)
+                  Category (living expenses)
                 </label>
                 <Select
                   value={fullActivityCategoryFilter}

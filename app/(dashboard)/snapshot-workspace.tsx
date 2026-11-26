@@ -1092,10 +1092,10 @@ export function SnapshotWorkspace() {
                 ) : null}
               </div>
 
-              {/* Living funds */}
+              {/* Living expenses */}
               <div className="px-2.5 sm:px-3">
                 <div className="mb-2 flex min-w-0 items-baseline justify-between gap-2 border-b border-slate-200 pb-2">
-                  <h3 className="shrink-0 text-[12px] font-semibold text-slate-700">Living Funds</h3>
+                  <h3 className="shrink-0 text-[12px] font-semibold text-slate-700">Living Expenses</h3>
                   <div className="inline-flex min-w-0 max-w-full shrink-0 items-baseline justify-end gap-3 whitespace-nowrap text-right text-[11px] text-slate-500 sm:gap-4">
                     <span
                       className={`font-medium tabular-nums text-slate-500 ${amountInter.className}`}
@@ -1155,7 +1155,7 @@ export function SnapshotWorkspace() {
                             setSelectedLivingLine(line)
                           }
                         }}
-                        aria-label={`Open living fund details for ${line.name}`}
+                        aria-label={`Open living expense details for ${line.name}`}
                       >
                         <DottedLeaderRow
                           left={
@@ -1758,7 +1758,7 @@ export function SnapshotWorkspace() {
                       <div className="min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2.5 text-left text-[11px] leading-relaxed text-slate-600">
                         <p>
                           This expense will be paid for directly from your Stash funds. It will not affect your
-                          monthly bills, living funds, or final Cashout.
+                          monthly bills, living expenses, or final Cashout.
                         </p>
                       </div>
                     </div>
@@ -1871,7 +1871,7 @@ export function SnapshotWorkspace() {
                                   </>
                                 ) : (
                                   <>
-                                    <CommandGroup heading="Living funds">
+                                    <CommandGroup heading="Living expenses">
                                       {appliedToPickerItems.livingItems.map((opt) => (
                                         <CommandItem
                                           key={opt.key}
@@ -2110,7 +2110,7 @@ export function SnapshotWorkspace() {
               <span className="tabular-nums text-slate-700">−{fmtDollars(billsTotal)}</span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-slate-600">− Living Funds</span>
+              <span className="text-slate-600">− Living Expenses</span>
               <span className="tabular-nums text-slate-700">−{fmtDollars(livingBudget)}</span>
             </div>
             {livingOverageLines.length > 0 ? (
@@ -2269,7 +2269,7 @@ export function SnapshotWorkspace() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Living Fund Details</DialogTitle>
+            <DialogTitle>Living Expense Details</DialogTitle>
           </DialogHeader>
           {selectedLivingLine ? (
             <div className="space-y-3 text-sm text-slate-700">
@@ -2388,7 +2388,7 @@ export function SnapshotWorkspace() {
                   htmlFor="snapshot-full-activity-category"
                   className="text-[10px] font-semibold uppercase tracking-wide text-slate-500"
                 >
-                  Category (living funds)
+                  Category (living expenses)
                 </label>
                 <Select
                   value={fullActivityCategoryFilter}

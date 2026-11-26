@@ -399,7 +399,7 @@ export function useLogbookCardModals({
       <Dialog open={selectedLivingLine !== null} onOpenChange={(open) => !open && setSelectedLivingLine(null)}>
         <DialogContent className="max-w-md font-sans">
           <DialogHeader>
-            <DialogTitle>Living Fund Details</DialogTitle>
+            <DialogTitle>Living Expense Details</DialogTitle>
           </DialogHeader>
           {selectedLivingLine ? (
             <div className="space-y-3 text-sm text-slate-700">
@@ -453,7 +453,7 @@ export function useLogbookCardModals({
               <span className="tabular-nums text-slate-700">−{fmtDollars(billsTotal)}</span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-slate-600">− Living Funds</span>
+              <span className="text-slate-600">− Living Expenses</span>
               <span className="tabular-nums text-slate-700">−{fmtDollars(livingBudget)}</span>
             </div>
             {livingOverageLines.length > 0 ? (
@@ -651,7 +651,7 @@ export function useLogbookCardModals({
                   </div>
                   {stashExpenseModal ? (
                     <p className="rounded-md border border-slate-200 bg-white px-3 py-2.5 text-[11px] leading-relaxed text-slate-600">
-                      This expense will be paid for directly from your Stash funds. It will not affect your monthly bills, living funds, or final Cashout.
+                      This expense will be paid for directly from your Stash funds. It will not affect your monthly bills, living expenses, or final Cashout.
                     </p>
                   ) : stashIncomeModal ? (
                     <p className="rounded-md border border-slate-200 bg-white px-3 py-2.5 text-[11px] leading-relaxed text-slate-600">
@@ -707,7 +707,7 @@ export function useLogbookCardModals({
                                   </>
                                 ) : (
                                   <>
-                                    <CommandGroup heading="Living funds">
+                                    <CommandGroup heading="Living expenses">
                                       {appliedToPickerItems.livingItems.map((option) => (
                                         <CommandItem key={option.key} value={`${option.label} ${option.key}`} onSelect={() => { setActivityAppliedToKeyDraft(option.key); setAppliedToOpen(false) }} className="text-[13px]">
                                           <Check className={cn("mr-2 h-4 w-4", activityAppliedToKeyDraft === option.key ? "opacity-100" : "opacity-0")} />

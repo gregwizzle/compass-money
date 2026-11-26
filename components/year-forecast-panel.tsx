@@ -357,7 +357,7 @@ export function YearForecastPanel({ budgetYear = DEFAULT_BUDGET_YEAR }: { budget
               [
                 ["Starting Funds", "startingFunds"],
                 ["Bills", "bills"],
-                ["Living Funds", "livingFunds"],
+                ["Living Expenses", "livingFunds"],
               ] as const
             ).map(([label, key]) => (
               <div key={key} className="contents">

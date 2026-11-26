@@ -11,6 +11,7 @@ import {
 import {
   DEFAULT_BUDGET_YEAR,
   MONTH_LABELS,
+  getMonthStripFlags,
   monthLongNameFromLabel,
   type MonthLabel,
 } from "@/lib/budget-month"
@@ -20,6 +21,15 @@ import { SNAPSHOT_LIVING_GLYPH } from "@/lib/snapshot-living-glyphs"
 import { cn } from "@/lib/utils"
 
 type RoadmapTab = "my-bills" | "my-income"
+
+function isClosedBudgetMonth(monthIndex: number) {
+  return getMonthStripFlags(monthIndex, { budgetYear: DEFAULT_BUDGET_YEAR }).isArchived
+}
+
+function firstOpenBudgetMonth(): MonthLabel {
+  const index = MONTH_LABELS.findIndex((_, monthIndex) => !isClosedBudgetMonth(monthIndex))
+  return MONTH_LABELS[index === -1 ? 0 : index]!
+}
 
 type BillApplyTo = "timeline-bill" | "direct-stash"
 type IncomeApplyTo = "starting-funds" | "direct-stash"
@@ -94,7 +104,7 @@ const BLUEPRINT_INFO: Record<
     body: "Your baseline bill blueprint. These bills automatically populate each new month on your Timeline as it opens, and carry forward into next year when you archive 2026.",
   },
   living: {
-    title: "My Living Funds",
+    title: "My Living Expenses",
     body: "Your monthly lifestyle allowances. These buckets are automatically funded at the start of every new Timeline month and carry forward year-to-year.",
   },
   purchase: {
@@ -116,7 +126,7 @@ const FORM_TITLES: Record<
   { add: string; edit: string }
 > = {
   bill: { add: "New Bill", edit: "Edit Bill" },
-  living: { add: "New Living Fund", edit: "Edit Living Fund" },
+  living: { add: "New Living Expense", edit: "Edit Living Expense" },
   purchase: { add: "Planned Purchase", edit: "Edit Purchase" },
   income: { add: "New Income", edit: "Edit Income" },
   windfall: { add: "Extra Cash", edit: "Edit Extra Cash" },
@@ -608,7 +618,7 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
     setDraftName("")
     setDraftAmount("")
     setDraftDay("1")
-    setDraftMonth("Jan")
+    setDraftMonth(kind === "purchase" ? firstOpenBudgetMonth() : "Jan")
     setDraftEveryMonth(kind === "bill" || kind === "income")
     setDraftBillApplyTo(kind === "purchase" ? "direct-stash" : "timeline-bill")
     setDraftIncomeApplyTo(kind === "windfall" ? "direct-stash" : "starting-funds")
@@ -720,6 +730,11 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
     const monthIndex = MONTH_LABELS.indexOf(draftMonth)
     const m = monthIndex < 0 ? 0 : monthIndex
     const { kind, mode } = formSession
+    if (kind === "purchase" && isClosedBudgetMonth(m)) {
+      const original =
+        mode === "edit" ? purchases.find((item) => item.id === formSession.id) : undefined
+      if (!original || original.monthIndex !== m) return
+    }
 
     if (mode === "add") {
       const id = `${kind}-${Date.now()}`
@@ -867,10 +882,20 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
       : FORM_TITLES[formKind].add
     : ""
 
+  const purchaseMonthBlocked =
+    formKind === "purchase" &&
+    isClosedBudgetMonth(MONTH_LABELS.indexOf(draftMonth)) &&
+    !(
+      formSession?.mode === "edit" &&
+      purchases.find((item) => item.id === formSession.id)?.monthIndex ===
+        MONTH_LABELS.indexOf(draftMonth)
+    )
+
   const canSaveAdd =
     formSession?.mode === "add" &&
     draftName.trim().length > 0 &&
-    parseAmount() > 0
+    parseAmount() > 0 &&
+    !purchaseMonthBlocked
 
 
   return (
@@ -1003,11 +1028,11 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
 
               <div className="flex min-w-0 flex-col gap-4">
                 <SectionCard
-                  title="My Living Funds"
-                  actionLabel="+ New Living Fund"
+                  title="My Living Expenses"
+                  actionLabel="+ New Living Expense"
                   onAction={() => openAddModal("living")}
                   onInfo={() => setInfoKind("living")}
-                  infoLabel="About My Living Funds"
+                  infoLabel="About My Living Expenses"
                 >
                   <PlanTable compact>
                     {livingFunds.map((fund) => {
@@ -1446,11 +1471,19 @@ export function RoadmapWorkspace(_props: RoadmapWorkspaceProps) {
                               }
                               className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-[13px] text-slate-800 outline-none"
                             >
-                              {MONTH_LABELS.map((m) => (
-                                <option key={m} value={m}>
-                                  {monthLongNameFromLabel(m)}
-                                </option>
-                              ))}
+                              {MONTH_LABELS.map((m, monthIndex) => {
+                                const closed = formKind === "purchase" && isClosedBudgetMonth(monthIndex)
+                                return (
+                                  <option
+                                    key={m}
+                                    value={m}
+                                    disabled={closed}
+                                    className={closed ? "text-slate-400" : undefined}
+                                  >
+                                    {monthLongNameFromLabel(m)}
+                                  </option>
+                                )
+                              })}
                             </select>
                             <input
                               value={draftDay}

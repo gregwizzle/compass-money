@@ -4,7 +4,7 @@ import { Car, Coffee, Dices, HeartPulse, Sparkles, UtensilsCrossed } from "lucid
 /**
  * Icons for snapshot living-fund lines. Colors stay distinct from each other
  * and align with the roadmap category accents. Curveballs is the catch-all
- * for surprises that do not belong in any other living fund.
+ * for surprises that do not belong in any other living expense.
  */
 export const SNAPSHOT_LIVING_GLYPH: Record<
   string,

@@ -122,7 +122,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
       </div>
 
       <div
-        className="flex flex-col gap-0.5 border-b border-slate-200 px-2 pb-2.5 pt-0.5"
+        className="flex flex-col gap-0.5 px-2 pb-2.5 pt-0.5"
         aria-label="Balances overview"
       >
         {SIDEBAR_SCOREBOARD.map((row) => {
@@ -152,6 +152,7 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
           )
         })}
       </div>
+      <div className="mx-2 border-b border-slate-200" aria-hidden />
 
       <nav className="flex flex-col py-2">
         <ul className="flex flex-col gap-0.5 px-2">
@@ -252,7 +253,8 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
             </Link>
           </div>
 
-          <div className="border-t border-stone-200/90 pt-3">
+          <div className="mx-2 border-t border-stone-200/90" aria-hidden />
+          <div className="pt-3">
             <div className="mb-2.5 flex items-center gap-2.5 px-2 pl-2.5 pr-2">
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-200/90 text-[10px] font-semibold tracking-tight text-slate-600"
@@ -292,7 +294,8 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
                   </li>
                 )
               })}
-              <li className="mt-2 border-t border-dashed border-stone-300/80 pt-2">
+              <li className="mt-2 pt-2">
+                <div className="mb-2 border-t border-dashed border-stone-300/80" aria-hidden />
                 <button
                   type="button"
                   className="group flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 pl-2.5 pr-2 text-left text-[11px] font-normal text-stone-600 transition-[background-color,color] duration-200 hover:bg-rose-100 hover:text-rose-900"
@@ -306,43 +309,46 @@ export function AppSidebar({ variant = "default" }: AppSidebarProps) {
         </div>
       </nav>
 
-      <div className="mt-auto border-t border-stone-200/80 py-4 pl-6 pr-4">
-        <div className="text-[10px] uppercase tracking-wider text-stone-400">v1.0 Beta</div>
-        <ul className="mt-2 flex flex-col gap-0.5">
-          {dashboardBetaFooterNav.map((item) => {
-            const isActive =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname === item.href || pathname.startsWith(`${item.href}/`)
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded-md py-2 pl-2.5 pr-2 text-xs font-medium transition-[background-color,color] duration-200",
-                    isActive
-                      ? "bg-stone-200/80 text-slate-800"
-                      : "text-stone-600 hover:bg-stone-200/60 hover:text-slate-800",
-                  )}
-                >
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <item.icon className="h-3.5 w-3.5 shrink-0 stroke-[1.5]" />
-                    <span className="truncate">{item.name}</span>
-                  </span>
-                  {isActive && (
-                    <ChevronRight
-                      className="pointer-events-none h-3.5 w-3.5 shrink-0 stroke-[1.75] text-[#004a73]"
-                      aria-hidden
-                    />
-                  )}
-                </Link>
-              </li>
-            )
-          })}
-          <li className="min-w-0 overflow-hidden">
-            <DevPageStamp />
-          </li>
-        </ul>
+      <div className="mt-auto">
+        <div className="mx-2 border-t border-stone-200/80" aria-hidden />
+        <div className="py-4 pl-6 pr-4">
+          <div className="text-[10px] uppercase tracking-wider text-stone-400">v1.0 Beta</div>
+          <ul className="mt-2 flex flex-col gap-0.5">
+            {dashboardBetaFooterNav.map((item) => {
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`)
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-md py-2 pl-2.5 pr-2 text-xs font-medium transition-[background-color,color] duration-200",
+                      isActive
+                        ? "bg-stone-200/80 text-slate-800"
+                        : "text-stone-600 hover:bg-stone-200/60 hover:text-slate-800",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <item.icon className="h-3.5 w-3.5 shrink-0 stroke-[1.5]" />
+                      <span className="truncate">{item.name}</span>
+                    </span>
+                    {isActive && (
+                      <ChevronRight
+                        className="pointer-events-none h-3.5 w-3.5 shrink-0 stroke-[1.75] text-[#004a73]"
+                        aria-hidden
+                      />
+                    )}
+                  </Link>
+                </li>
+              )
+            })}
+            <li className="min-w-0 overflow-hidden">
+              <DevPageStamp />
+            </li>
+          </ul>
+        </div>
       </div>
     </aside>
   )
